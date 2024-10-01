@@ -4,7 +4,7 @@
   import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
   import { onAuthStateChanged } from 'firebase/auth';
   import { goto } from '$app/navigation';
-  import { Trash2, Edit, Plus, Calendar, Clock, DollarSign, Book } from 'lucide-svelte';
+  import { Trash2, Edit, Plus, Calendar, Clock, Book, JapaneseYen } from 'lucide-svelte';
 
   let categories = [];
   let courses = [];
@@ -282,7 +282,7 @@
                   <p class="flex items-center"><Calendar class="mr-2" size={16} /> Class Days: {formatDays(course.classDays)}</p>
                   <p class="flex items-center"><Clock class="mr-2" size={16} /> Class Hours: {course.classHours}</p>
                   <p class="flex items-center"><Calendar class="mr-2" size={16} /> Duration: {course.durationMonths} months</p>
-                  <p class="flex items-center"><DollarSign class="mr-2" size={16} /> Fee Per Hour: ¥{course.feePerHour}</p>
+                  <p class="flex items-center"><JapaneseYen class="mr-2" size={16}/> Fee Per Hour: ¥ {course.feePerHour}</p> 
                   <p class="flex items-center"><Calendar class="mr-2" size={16} /> Start Date: {course.courseStartDate}</p>
                   <p class="flex items-center"><Clock class="mr-2" size={16} /> Time Slot: {course.timeSlot}</p>
                 </div>
