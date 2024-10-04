@@ -15,9 +15,10 @@
     categoryId: '',
     classDays: [],
     classHours: 1.5,
-    durationMonths: 11,
+    durationMonths: 0,
     feePerHour: 600,
     courseStartDate: '',
+    courseEndDate: '',
     timeSlot: ''
   };
   let newHoliday = { month: 1, days: '' };
@@ -97,6 +98,7 @@
       durationMonths: courseToUpdate.durationMonths,
       feePerHour: courseToUpdate.feePerHour,
       courseStartDate: courseToUpdate.courseStartDate,
+      courseEndDate: courseToUpdate.courseEndDate,
       timeSlot: courseToUpdate.timeSlot
     });
     await fetchCourses();
@@ -113,9 +115,10 @@
       categoryId: '',
       classDays: [],
       classHours: 1.5,
-      durationMonths: 11,
+      durationMonths: 0,
       feePerHour: 600,
       courseStartDate: '',
+      courseEndDate: '',
       timeSlot: ''
     };
   }
@@ -151,6 +154,16 @@
 
   function formatDays(days) {
     return days.map(day => daysOfWeek[day].name).join(', ');
+  }
+
+  function calculateDurationMonths() {
+    if (newCourse.courseStartDate && newCourse.courseEndDate) {
+      const start = new Date(newCourse.courseStartDate);
+      const end = new Date(newCourse.courseEndDate);
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      newCourse.durationMonths = Math.ceil(diffDays / 30);
+    }
   }
 </script>
 
@@ -248,16 +261,20 @@
                 <input type="number" id="courseClassHours" bind:value={newCourse.classHours} step="0.5" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
               </div>
               <div>
-                <label for="courseDurationMonths" class="block text-gray-700 text-sm font-bold mb-2">Duration (Months):</label>
-                <input type="number" id="courseDurationMonths" bind:value={newCourse.durationMonths} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-              </div>
-              <div>
                 <label for="courseFeePerHour" class="block text-gray-700 text-sm font-bold mb-2">Fee Per Hour:</label>
                 <input type="number" id="courseFeePerHour" bind:value={newCourse.feePerHour} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
               </div>
               <div>
                 <label for="courseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Start Date:</label>
-                <input type="date" id="courseStartDate" bind:value={newCourse.courseStartDate} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                <input type="date" id="courseStartDate" bind:value={newCourse.courseStartDate} on:change={calculateDurationMonths} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+              </div>
+              <div>
+                <label for="courseEndDate" class="block text-gray-700 text-sm font-bold mb-2">End Date:</label>
+                <input type="date" id="courseEndDate" bind:value={newCourse.courseEndDate} on:change={calculateDurationMonths} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+              </div>
+              <div>
+                <label for="courseDurationMonths" class="block text-gray-700 text-sm font-bold mb-2">Duration (Months):</label>
+                <input type="number" id="courseDurationMonths" bind:value={newCourse.durationMonths} readonly class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-100">
               </div>
               <div>
                 <label for="courseTimeSlot" class="block text-gray-700 text-sm font-bold mb-2">Time Slot:</label>
@@ -284,6 +301,7 @@
                   <p class="flex items-center"><Calendar class="mr-2" size={16} /> Duration: {course.durationMonths} months</p>
                   <p class="flex items-center"><JapaneseYen class="mr-2" size={16}/> Fee Per Hour: ¥ {course.feePerHour}</p> 
                   <p class="flex items-center"><Calendar class="mr-2" size={16} /> Start Date: {course.courseStartDate}</p>
+                  <p class="flex items-center"><Calendar class="mr-2" size={16} /> End Date: {course.courseEndDate}</p>
                   <p class="flex items-center"><Clock class="mr-2" size={16} /> Time Slot: {course.timeSlot}</p>
                 </div>
                 <div class="mt-4 flex justify-end space-x-2">
