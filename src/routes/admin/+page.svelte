@@ -4,7 +4,7 @@
   import { collection, addDoc, getDocs, updateDoc, deleteDoc, doc } from 'firebase/firestore';
   import { onAuthStateChanged } from 'firebase/auth';
   import { goto } from '$app/navigation';
-  import { Trash2, Edit, Plus, Calendar, Clock, Book, JapaneseYen } from 'lucide-svelte';
+  import { Trash2, Edit, Plus, Calendar, Clock, Book, JapaneseYen, User } from 'lucide-svelte';
 
   let categories = [];
   let courses = [];
@@ -24,6 +24,8 @@
   let newHoliday = { month: 1, days: '' };
   let user = null;
   let activeTab = 'categories';
+  let showUpdateModal = false;
+  let courseToUpdate = null;
 
   const daysOfWeek = [
     { id: 0, name: 'Sunday' },
@@ -83,12 +85,29 @@
   }
 
   async function addCourse() {
-    await addDoc(collection(db, 'courses'), newCourse);
+    const courseData = {
+      ...newCourse,
+      createdAt: new Date().toISOString(),
+      createdBy: user.email
+    };
+    await addDoc(collection(db, 'courses'), courseData);
     await fetchCourses();
     resetNewCourse();
   }
 
-  async function updateCourse(courseToUpdate) {
+  function openUpdateModal(course) {
+    courseToUpdate = { ...course };
+    showUpdateModal = true;
+  }
+
+  function closeUpdateModal() {
+    showUpdateModal = false;
+    courseToUpdate = null;
+  }
+
+  async function updateCourse() {
+    if (!courseToUpdate) return;
+
     const courseRef = doc(db, 'courses', courseToUpdate.id);
     await updateDoc(courseRef, {
       name: courseToUpdate.name,
@@ -102,6 +121,7 @@
       timeSlot: courseToUpdate.timeSlot
     });
     await fetchCourses();
+    closeUpdateModal();
   }
 
   async function deleteCourse(id) {
@@ -152,6 +172,16 @@
     }
   }
 
+  function toggleUpdateDay(day) {
+    if (!courseToUpdate) return;
+    const index = courseToUpdate.classDays.indexOf(day);
+    if (index === -1) {
+      courseToUpdate.classDays = [...courseToUpdate.classDays, day];
+    } else {
+      courseToUpdate.classDays = courseToUpdate.classDays.filter(d => d !== day);
+    }
+  }
+
   function formatDays(days) {
     return days.map(day => daysOfWeek[day].name).join(', ');
   }
@@ -162,8 +192,13 @@
       const end = new Date(newCourse.courseEndDate);
       const diffTime = Math.abs(end - start);
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      newCourse.durationMonths = Math.ceil(diffDays / 30);
+      newCourse.durationMonths = Math.round(diffDays / 30.44); // Using average days in a month
     }
+  }
+
+  function formatDate(dateString) {
+    const date = new Date(dateString);
+    return `${date.getDate().toString().padStart(2, '0')}/${(date.getMonth() + 1).toString().padStart(2, '0')}/${date.getFullYear()}`;
   }
 </script>
 
@@ -230,10 +265,7 @@
           <h2 class="text-2xl font-bold mb-4">Manage Courses</h2>
           <form on:submit|preventDefault={addCourse} class="mb-6">
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label for="courseName" class="block text-gray-700 text-sm font-bold mb-2">Course Name:</label>
-                <input type="text" id="courseName" bind:value={newCourse.name} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
-              </div>
+             
               <div>
                 <label for="courseCategory" class="block text-gray-700 text-sm font-bold mb-2">Category:</label>
                 <select id="courseCategory" bind:value={newCourse.categoryId} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
@@ -242,6 +274,10 @@
                     <option value={category.id}>{category.name}</option>
                   {/each}
                 </select>
+              </div>
+              <div>
+                <label for="courseName" class="block text-gray-700 text-sm font-bold mb-2">Course Name:</label>
+                <input type="text" id="courseName" bind:value={newCourse.name} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
               </div>
               <div class="col-span-2">
                 <fieldset>
@@ -278,7 +314,7 @@
               </div>
               <div>
                 <label for="courseTimeSlot" class="block text-gray-700 text-sm font-bold mb-2">Time Slot:</label>
-                <input type="text" id="courseTimeSlot" bind:value={newCourse.timeSlot} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                <input  type="text" id="courseTimeSlot" bind:value={newCourse.timeSlot} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
               </div>
             </div>
             <div class="mt-6">
@@ -300,12 +336,14 @@
                   <p class="flex items-center"><Clock class="mr-2" size={16} /> Class Hours: {course.classHours}</p>
                   <p class="flex items-center"><Calendar class="mr-2" size={16} /> Duration: {course.durationMonths} months</p>
                   <p class="flex items-center"><JapaneseYen class="mr-2" size={16}/> Fee Per Hour: ¥ {course.feePerHour}</p> 
-                  <p class="flex items-center"><Calendar class="mr-2" size={16} /> Start Date: {course.courseStartDate}</p>
-                  <p class="flex items-center"><Calendar class="mr-2" size={16} /> End Date: {course.courseEndDate}</p>
+                  <p class="flex items-center"><Calendar class="mr-2" size={16} /> Start Date: {formatDate(course.courseStartDate)}</p>
+                  <p class="flex items-center"><Calendar class="mr-2" size={16} /> End Date: {formatDate(course.courseEndDate)}</p>
                   <p class="flex items-center"><Clock class="mr-2" size={16} /> Time Slot: {course.timeSlot}</p>
+                  <p class="flex items-center"><Calendar class="mr-2" size={16} /> Created: {formatDate(course.createdAt)}</p>
+                  <p class="flex items-center"><User class="mr-2" size={16} /> Created by: {course.createdBy}</p>
                 </div>
                 <div class="mt-4 flex justify-end space-x-2">
-                  <button on:click={() => updateCourse(course)} class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center">
+                  <button on:click={() => openUpdateModal(course)} class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center">
                     <Edit class="mr-2" size={16} />
                     Update
                   </button>
@@ -365,6 +403,73 @@
       {/if}
     </div>
   </main>
+{/if}
+
+{#if showUpdateModal && courseToUpdate}
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full" id="my-modal">
+    <div class="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+      <div class="mt-3 text-center">
+        <h3 class="text-lg leading-6 font-medium text-gray-900">Update Course</h3>
+        <div class="mt-2 px-7 py-3">
+          <form on:submit|preventDefault={updateCourse} class="space-y-4">
+            <div>
+              <label for="updateCourseName" class="block text-gray-700 text-sm font-bold mb-2">Course Name:</label>
+              <input type="text" id="updateCourseName" bind:value={courseToUpdate.name} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+            <div>
+              <label for="updateCourseCategory" class="block text-gray-700 text-sm font-bold mb-2">Category:</label>
+              <select id="updateCourseCategory" bind:value={courseToUpdate.categoryId} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+                {#each categories as category}
+                  <option value={category.id}>{category.name}</option>
+                {/each}
+              </select>
+            </div>
+            <div>
+              <fieldset>
+                <legend class="block text-gray-700 text-sm font-bold mb-2">Class Days:</legend>
+                <div class="flex flex-wrap gap-2">
+                  {#each daysOfWeek as day}
+                    <label class="inline-flex items-center">
+                      <input type="checkbox" class="form-checkbox" checked={courseToUpdate.classDays.includes(day.id)} on:change={() => toggleUpdateDay(day.id)}>
+                      <span class="ml-2">{day.name}</span>
+                    </label>
+                  {/each}
+                </div>
+              </fieldset>
+            </div>
+            <div>
+              <label for="updateCourseClassHours" class="block text-gray-700 text-sm font-bold mb-2">Class Hours:</label>
+              <input type="number" id="updateCourseClassHours" bind:value={courseToUpdate.classHours} step="0.5" required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+            <div>
+              <label for="updateCourseFeePerHour" class="block text-gray-700 text-sm font-bold mb-2">Fee Per Hour:</label>
+              <input type="number" id="updateCourseFeePerHour" bind:value={courseToUpdate.feePerHour} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+            <div>
+              <label for="updateCourseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Start Date:</label>
+              <input type="date" id="updateCourseStartDate" bind:value={courseToUpdate.courseStartDate} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+            <div>
+              <label for="updateCourseEndDate" class="block text-gray-700 text-sm font-bold mb-2">End Date:</label>
+              <input type="date" id="updateCourseEndDate" bind:value={courseToUpdate.courseEndDate} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+            <div>
+              <label for="updateCourseTimeSlot" class="block text-gray-700 text-sm font-bold mb-2">Time Slot:</label>
+              <input type="text" id="updateCourseTimeSlot" bind:value={courseToUpdate.timeSlot} required class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline">
+            </div>
+            <div class="flex justify-end space-x-2">
+              <button type="button" on:click={closeUpdateModal} class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Cancel
+              </button>
+              <button type="submit" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Update
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
 {/if}
 
 <style>
