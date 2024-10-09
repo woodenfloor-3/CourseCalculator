@@ -32,7 +32,9 @@
 
   async function fetchCourses() {
     const querySnapshot = await getDocs(collection(db, 'courses'));
-    courses = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+    courses = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(),
+      courseTime: doc.data().timeSlot
+     }));
   }
 
   async function fetchHolidays() {
@@ -289,16 +291,16 @@
             class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
           />
         </div>
-        <div class="mb-4">
-          <label for="courseTime" class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
-          <input
-            type="text"
-            id="courseTime"
-            value={selectedCourse.courseTime}
-            readonly
-            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          />
-        </div>
+         <div class="mb-4">
+      <label for="courseTime" class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
+      <input
+        type="text"
+        id="courseTime"
+        value={selectedCourse.courseTime}
+        readonly
+        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+      />
+    </div>
       {/if}
 
       <h2 class="text-xl font-bold mb-4">Course Details</h2>
