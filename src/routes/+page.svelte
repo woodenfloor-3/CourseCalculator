@@ -2,6 +2,8 @@
   import { onMount } from 'svelte';
   import { db } from '$lib/firebase';
   import { collection, getDocs } from 'firebase/firestore';
+  import { jsPDF } from 'jspdf';
+  import 'jspdf-autotable';
 
   let categories = [];
   let courses = [];
@@ -43,6 +45,10 @@
     return holiday ? holiday.days.includes(date.getDate()) : false;
   }
 
+  function isLeapYear(year) {
+    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
+  }
+
   function calculateFees() {
     if (!selectedCourse || !studentJoinDate) {
       alert('Please select a course and join date');
@@ -52,6 +58,9 @@
     const courseStartDate = new Date(selectedCourse.courseStartDate);
     const joinDate = new Date(studentJoinDate);
     const courseEndDate = new Date(selectedCourse.courseEndDate);
+    const endDate = paymentOption === 'installment' && installmentEndDate
+      ? new Date(installmentEndDate)
+      : courseEndDate;
 
     if (joinDate < courseStartDate) {
       alert('Join date cannot be earlier than the course start date');
@@ -63,26 +72,44 @@
       return;
     }
 
-    let currentDate = new Date(joinDate);
+    if (paymentOption === 'installment' && new Date(installmentEndDate) > courseEndDate) {
+      alert('Installment end date cannot be after the course end date');
+      return;
+    }
+
+    let currentDate = new Date(Math.max(joinDate, courseStartDate));
     let monthlyBreakdown = [];
     let totalHours = 0;
     let currentMonth = currentDate.getMonth();
+    let currentYear = currentDate.getFullYear();
     let currentMonthHours = 0;
+    let currentMonthDays = 0;
 
-    while (currentDate <= courseEndDate) {
+    while (currentDate <= endDate) {
       if (selectedCourse.classDays.includes(currentDate.getDay()) && !isHoliday(currentDate)) {
         totalHours += selectedCourse.classHours;
         currentMonthHours += selectedCourse.classHours;
+        currentMonthDays++;
       }
 
-      if (currentDate.getMonth() !== currentMonth || currentDate.getTime() === courseEndDate.getTime()) {
-        monthlyBreakdown.push({
-          month: new Date(currentDate.getFullYear(), currentMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' }),
-          hours: currentMonthHours,
-          fees: currentMonthHours * selectedCourse.feePerHour
-        });
-        currentMonth = currentDate.getMonth();
+      // Check if it's the last day of the month or the last day of the course
+      const nextDate = new Date(currentDate);
+      nextDate.setDate(nextDate.getDate() + 1);
+      const isLastDayOfMonth = currentDate.getMonth() !== nextDate.getMonth();
+      const isLastDayOfCourse = currentDate.getTime() === endDate.getTime();
+
+      if (isLastDayOfMonth || isLastDayOfCourse) {
+        if (currentMonthDays > 0) {
+          monthlyBreakdown.push({
+            month: new Date(currentYear, currentMonth, 1).toLocaleString('default', { month: 'long', year: 'numeric' }),
+            hours: currentMonthHours,
+            fees: currentMonthHours * selectedCourse.feePerHour
+          });
+        }
+        currentMonth = nextDate.getMonth();
+        currentYear = nextDate.getFullYear();
         currentMonthHours = 0;
+        currentMonthDays = 0;
       }
 
       currentDate.setDate(currentDate.getDate() + 1);
@@ -104,21 +131,72 @@
       totalFeesWithTax,
       courseStartDate: courseStartDate.toDateString(),
       studentJoinDate: joinDate.toDateString(),
-      courseEndDate: courseEndDate.toDateString(),
+      courseEndDate: endDate.toDateString(),
       courseDays: selectedCourse.classDays.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', '),
       courseDuration: selectedCourse.durationMonths,
+      courseTime: selectedCourse.courseTime,
       monthlyBreakdown
     };
 
-    if (paymentOption === 'installment' && installmentEndDate) {
-      const installmentEnd = new Date(installmentEndDate);
-      const installmentMonths = (installmentEnd.getFullYear() - joinDate.getFullYear()) * 12 + 
-                                (installmentEnd.getMonth() - joinDate.getMonth()) + 1;
+    if (paymentOption === 'installment') {
+      const installmentMonths = monthlyBreakdown.length;
       calculatedFees.installmentAmount = totalFeesWithTax / installmentMonths;
       calculatedFees.installments = installmentMonths;
     }
 
     activeTab = 'results';
+  }
+  
+
+  function exportToPDF() {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(18);
+    doc.text('Course Fee Calculation', 14, 22);
+
+    // Add course details
+    doc.setFontSize(12);
+    doc.text(`Course: ${calculatedFees.course}`, 14, 32);
+    doc.text(`Total Hours: ${calculatedFees.totalHours}`, 14, 40);
+    doc.text(`Course Start: ${calculatedFees.courseStartDate}`, 14, 48);
+    doc.text(`Student Join: ${calculatedFees.studentJoinDate}`, 14, 56);
+    doc.text(`Course End: ${calculatedFees.courseEndDate}`, 14, 64);
+    doc.text(`Course Days: ${calculatedFees.courseDays}`, 14, 72);
+    doc.text(`Course Time: ${calculatedFees.courseTime}`, 14, 80);
+
+    // Add fee breakdown
+    doc.text('Fee Breakdown:', 14, 92);
+    doc.autoTable({
+      startY: 96,
+      head: [['Item', 'Amount (¥)']],
+      body: [
+        ['Course Fees', calculatedFees.courseFees.toFixed(2)],
+        ['Registration Fee', calculatedFees.registrationFee.toFixed(2)],
+        ['Sub Total', calculatedFees.subTotal.toFixed(2)],
+        ['Tax (10%)', calculatedFees.taxAmount.toFixed(2)],
+        ['Total Fees', calculatedFees.totalFeesWithTax.toFixed(2)]
+      ],
+    });
+
+    // Add installment details if applicable
+    if (paymentOption === 'installment') {
+      doc.text('Installment Details:', 14, doc.lastAutoTable.finalY + 10);
+      doc.text(`Number of Installments: ${calculatedFees.installments}`, 14, doc.lastAutoTable.finalY + 18);
+      doc.text(`Monthly Installment: ¥${calculatedFees.installmentAmount.toFixed(2)}`, 14, doc.lastAutoTable.finalY + 26);
+    }
+
+    // Add monthly breakdown
+    doc.addPage();
+    doc.text('Monthly Breakdown:', 14, 20);
+    doc.autoTable({
+      startY: 24,
+      head: [['Month', 'Hours', 'Fees (¥)']],
+      body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
+    });
+
+    // Save the PDF
+    doc.save('course_fee_calculation.pdf');
   }
 
   $: filteredCourses = selectedCategory 
@@ -181,24 +259,49 @@
       </div>
 
       {#if selectedCourse}
-      <div class="mb-4">
-        <label
-          for="courseEndDate"
-          class="block text-gray-700 text-sm font-bold mb-2"
-          >Course End Date:</label
-        >
-        <input
-          type="date"
-          id="courseEndDate"
-          value={selectedCourse?.courseEndDate}
-          readonly
-          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-        />
-      </div>
-    {/if}
+        <div class="mb-4">
+          <label for="courseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Course Start Date:</label>
+          <input
+            type="date"
+            id="courseStartDate"
+            value={selectedCourse.courseStartDate}
+            readonly
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+        <div class="mb-4">
+          <label for="courseEndDate" class="block text-gray-700 text-sm font-bold mb-2">Course End Date:</label>
+          <input
+            type="date"
+            id="courseEndDate"
+            value={selectedCourse.courseEndDate}
+            readonly
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+        <div class="mb-4">
+          <label for="courseDuration" class="block text-gray-700 text-sm font-bold mb-2">Course Duration:</label>
+          <input
+            type="text"
+            id="courseDuration"
+            value={`${selectedCourse.durationMonths} months`}
+            readonly
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+        <div class="mb-4">
+          <label for="courseTime" class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
+          <input
+            type="text"
+            id="courseTime"
+            value={selectedCourse.courseTime}
+            readonly
+            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          />
+        </div>
+      {/if}
 
       <h2 class="text-xl font-bold mb-4">Course Details</h2>
-      
       
       <div class="mb-4">
         <label for="studentJoinDate" class="block text-gray-700 text-sm font-bold mb-2">Student Join Date:</label>
@@ -210,7 +313,6 @@
           max={selectedCourse?.courseEndDate}
           class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
         />
-        
       </div>
 
       <div class="mb-4">
@@ -245,6 +347,7 @@
           class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
         >
           Calculate Fees
+        
         </button>
       </div>
     {:else if activeTab === 'results' && calculatedFees}
@@ -276,6 +379,8 @@
         <div>{calculatedFees.courseDays}</div>
         <div class="font-bold">Course Duration:</div>
         <div>{calculatedFees.courseDuration} months</div>
+        <div class="font-bold">Course Time:</div>
+        <div>{calculatedFees.courseTime}</div>
       </div>
 
       {#if paymentOption === 'installment' && calculatedFees.installments}
@@ -284,7 +389,7 @@
           <div class="grid grid-cols-2 gap-4">
             <div class="font-bold">Installment Duration:</div>
             <div>{calculatedFees.installments} months</div>
-            <div class="font-bold">Installment Amount:</div>
+            <div class="font-bold">Monthly Installment:</div>
             <div>¥{calculatedFees.installmentAmount.toFixed(2)}</div>
           </div>
         </div>
@@ -310,6 +415,15 @@
             {/each}
           </tbody>
         </table>
+      </div>
+
+      <div class="mt-6 flex justify-center">
+        <button
+          on:click={exportToPDF}
+          class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+        >
+          Export to PDF
+        </button>
       </div>
     {/if}
   </div>
