@@ -19,6 +19,9 @@
   const REGISTRATION_FEE = 5000;
   const TAX_RATE = 0.1; // 10% tax rate
 
+  //Logo source
+  const logoUrl = '/logoeek.png';
+
   onMount(async () => {
     await fetchCategories();
     await fetchCourses();
@@ -133,7 +136,7 @@
       totalFeesWithTax,
       courseStartDate: courseStartDate.toDateString(),
       studentJoinDate: joinDate.toDateString(),
-      courseEndDate: endDate.toDateString(),
+      courseEndDate: courseEndDate.toDateString(),
       courseDays: selectedCourse.classDays.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', '),
       courseDuration: selectedCourse.durationMonths,
       courseTime: selectedCourse.courseTime,
@@ -149,10 +152,11 @@
     activeTab = 'results';
   }
   
-
   function exportToPDF() {
     const doc = new jsPDF();
     
+    //Add logo
+    doc.addImage(logoUrl, 'PNG', 170, 10, 38, 10);
     // Add title
     doc.setFontSize(18);
     doc.text('Course Fee Calculation', 14, 22);
@@ -185,7 +189,6 @@
     if (paymentOption === 'installment') {
       doc.text('Installment Details:', 14, doc.lastAutoTable.finalY + 10);
       doc.text(`Number of Installments: ${calculatedFees.installments}`, 14, doc.lastAutoTable.finalY + 18);
-      doc.text(`Monthly Installment: ¥${calculatedFees.installmentAmount.toFixed(2)}`, 14, doc.lastAutoTable.finalY + 26);
     }
 
     // Add monthly breakdown
@@ -196,9 +199,9 @@
       head: [['Month', 'Hours', 'Fees (¥)']],
       body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
     });
-
-    // Save the PDF
-    doc.save('course_fee_calculation.pdf');
+    
+    // Save the PDF with the course name
+    doc.save(`${calculatedFees.course}_fee_calculation.pdf`);
   }
 
   $: filteredCourses = selectedCategory 
@@ -207,28 +210,28 @@
 </script>
 
 <div class="container mx-auto p-4 max-w-2xl">
-  <h1 class="text-3xl font-bold mb-6 text-center text-blue-600">Course Fee Calculator</h1>
+  <h1 class="text-2xl sm:text-3xl font-bold mb-6 text-center text-blue-600">Course Fee Calculator</h1>
   
-  <div class="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-    <div class="mb-4">
+  <div class="bg-white shadow-md rounded px-4 sm:px-8 pt-6 pb-8 mb-4">
+    <div class="mb-4 flex flex-wrap justify-center gap-2">
       <button
-        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded mr-2"
+        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm sm:text-base"
         class:bg-blue-700={activeTab === 'calculator'}
-        on:click={() => activeTab = 'calculator'}
+        on:click={() => (activeTab = "calculator")}
       >
         Calculator
       </button>
       <button
-        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded"
+        class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded text-sm sm:text-base"
         class:bg-blue-700={activeTab === 'results'}
-        on:click={() => activeTab = 'results'}
+        on:click={() => (activeTab = "results")}
         disabled={!calculatedFees}
       >
         Results
       </button>
     </div>
 
-    {#if activeTab === 'calculator'}
+    {#if activeTab === "calculator"}
       <h2 class="text-xl font-bold mb-4">Categories</h2>
       <div class="mb-4">
         <label for="category" class="block text-gray-700 text-sm font-bold mb-2">Select Category:</label>
@@ -261,49 +264,38 @@
       </div>
 
       {#if selectedCourse}
-        <div class="mb-4">
-          <label for="courseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Course Start Date:</label>
-          <input
-            type="date"
-            id="courseStartDate"
-            value={selectedCourse.courseStartDate}
-            readonly
-            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          />
+      <div class="mb-4">
+        <h3 class="text-lg font-semibold mb-2">Course Details</h3>
+        <div class="grid grid-cols-1 gap-4">
+          <div>
+            <label for="courseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Course Start Date:</label>
+            <div id="courseStartDate" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+              {new Date(selectedCourse.courseStartDate).toLocaleDateString()}
+            </div>
+          </div>
+          <div>
+            <label for="courseEndDate" class="block text-gray-700 text-sm font-bold mb-2">Course End Date:</label>
+            <div id="courseEndDate" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+              {new Date(selectedCourse.courseEndDate).toLocaleDateString()}
+            </div>
+          </div>
+          <div>
+            <label for="courseDuration" class="block text-gray-700 text-sm font-bold mb-2">Course Duration:</label>
+            <div id="courseDuration" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+              {selectedCourse.durationMonths} months
+            </div>
+          </div>
+          <div>
+            <label for="courseTime" class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
+            <div id="courseTime" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+              {selectedCourse.courseTime}
+            </div>
+          </div>
         </div>
-        <div class="mb-4">
-          <label for="courseEndDate" class="block text-gray-700 text-sm font-bold mb-2">Course End Date:</label>
-          <input
-            type="date"
-            id="courseEndDate"
-            value={selectedCourse.courseEndDate}
-            readonly
-            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          />
-        </div>
-        <div class="mb-4">
-          <label for="courseDuration" class="block text-gray-700 text-sm font-bold mb-2">Course Duration:</label>
-          <input
-            type="text"
-            id="courseDuration"
-            value={`${selectedCourse.durationMonths} months`}
-            readonly
-            class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-          />
-        </div>
-         <div class="mb-4">
-      <label for="courseTime" class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
-      <input
-        type="text"
-        id="courseTime"
-        value={selectedCourse.courseTime}
-        readonly
-        class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-      />
-    </div>
-      {/if}
+      </div>
+    {/if}
 
-      <h2 class="text-xl font-bold mb-4">Course Details</h2>
+      <h2 class="text-xl font-bold mb-4">Student Details</h2>
       
       <div class="mb-4">
         <label for="studentJoinDate" class="block text-gray-700 text-sm font-bold mb-2">Student Join Date:</label>
@@ -346,15 +338,14 @@
       <div class="flex items-center justify-center">
         <button
           on:click={calculateFees}
-          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline text-sm sm:text-base"
         >
           Calculate Fees
-        
         </button>
       </div>
     {:else if activeTab === 'results' && calculatedFees}
-      <h2 class="text-2xl font-bold mb-4 text-center text-blue-600">Calculation Results</h2>
-      <div class="grid grid-cols-2 gap-4">
+      <h2 class="text-xl sm:text-2xl font-bold mb-4 text-center text-blue-600">Calculation Results</h2>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm sm:text-base">
         <div class="font-bold">Course:</div>
         <div>{calculatedFees.course}</div>
         <div class="font-bold">Total Hours:</div>
@@ -387,42 +378,42 @@
 
       {#if paymentOption === 'installment' && calculatedFees.installments}
         <div class="mt-6">
-          <h3 class="text-xl font-bold mb-2">Installment Details</h3>
-          <div class="grid grid-cols-2 gap-4">
+          <h3 class="text-lg font-bold mb-2">Installment Details</h3>
+          <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm sm:text-base">
             <div class="font-bold">Installment Duration:</div>
             <div>{calculatedFees.installments} months</div>
-            <div class="font-bold">Monthly Installment:</div>
-            <div>¥{calculatedFees.installmentAmount.toFixed(2)}</div>
           </div>
         </div>
       {/if}
 
       <div class="mt-6">
-        <h3 class="text-xl font-bold mb-2">Monthly Breakdown</h3>
-        <table class="w-full border-collapse">
-          <thead>
-            <tr>
-              <th class="border p-2">Month</th>
-              <th class="border p-2">Hours</th>
-              <th class="border p-2">Fees</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each calculatedFees.monthlyBreakdown as month}
+        <h3 class="text-lg font-bold mb-2">Monthly Breakdown</h3>
+        <div class="overflow-x-auto">
+          <table class="w-full border-collapse text-sm sm:text-base">
+            <thead>
               <tr>
-                <td class="border p-2">{month.month}</td>
-                <td class="border p-2">{month.hours}</td>
-                <td class="border p-2">¥{month.fees.toFixed(2)}</td>
+                <th class="border p-2">Month</th>
+                <th class="border p-2">Hours</th>
+                <th class="border p-2">Fees</th>
               </tr>
-            {/each}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {#each calculatedFees.monthlyBreakdown as month}
+                <tr>
+                  <td class="border p-2">{month.month}</td>
+                  <td class="border p-2">{month.hours}</td>
+                  <td class="border p-2">¥{month.fees.toFixed(2)}</td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        </div>
       </div>
 
       <div class="mt-6 flex justify-center">
         <button
           on:click={exportToPDF}
-          class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
+          class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline text-sm sm:text-base"
         >
           Export to PDF
         </button>

@@ -54,6 +54,11 @@
     { id: 6, name: "Saturday" },
   ];
 
+  const months = [
+    "January", "February", "March", "April", "May", "June",
+    "July", "August", "September", "October", "November", "December"
+  ];
+
   onMount(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       if (currentUser) {
@@ -219,21 +224,6 @@
     await fetchHolidays();
   }
 
-  const months = [
-    "January",
-    "February",
-    "March",
-    "April",
-    "May",
-    "June",
-    "July",
-    "August",
-    "September",
-    "October",
-    "November",
-    "December",
-  ];
-
   function toggleDay(day) {
     const index = newCourse.classDays.indexOf(day);
     if (index === -1) {
@@ -276,52 +266,43 @@
 </script>
 
 {#if user}
-  <main class="container mx-auto p-4 max-w-6xl">
-    <h1 class="text-4xl font-bold mb-8 text-center text-blue-600">
+  <main class="container mx-auto p-4">
+    <h1 class="text-2xl sm:text-4xl font-bold mb-8 text-center text-blue-600">
       Admin Dashboard
     </h1>
 
     <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
-      <div class="flex border-b">
+      <div class="flex flex-wrap border-b">
         <button
-          class="flex-1 py-4 px-6 text-center font-semibold {activeTab ===
-          'categories'
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-100'}"
+          class="flex-1 py-2 sm:py-4 px-4 sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'categories' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
           on:click={() => (activeTab = "categories")}
         >
           Categories
         </button>
         <button
-          class="flex-1 py-4 px-6 text-center font-semibold {activeTab ===
-          'courses'
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-100'}"
+          class="flex-1 py-2 sm:py-4 px-4 sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'courses' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
           on:click={() => (activeTab = "courses")}
         >
           Courses
         </button>
         <button
-          class="flex-1 py-4 px-6 text-center font-semibold {activeTab ===
-          'holidays'
-            ? 'bg-blue-500 text-white'
-            : 'hover:bg-gray-100'}"
+          class="flex-1 py-2 sm:py-4 px-4 sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'holidays' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
           on:click={() => (activeTab = "holidays")}
         >
           Holidays
         </button>
       </div>
 
-      {#if activeTab === "categories"}
-        <div class="p-6">
-          <h2 class="text-2xl font-bold mb-4">Manage Categories</h2>
+      <div class="p-4 sm:p-6">
+        {#if activeTab === "categories"}
+          <h2 class="text-xl sm:text-2xl font-bold mb-4">Manage Categories</h2>
           <form on:submit|preventDefault={addCategory} class="mb-6">
-            <div class="flex items-center space-x-4">
-              <div class="flex-1">
+            <div class="flex flex-col sm:flex-row items-center space-y-4 sm:space-y-0 sm:space-x-4">
+              <div class="w-full sm:flex-1">
                 <label
                   for="categoryName"
                   class="block text-gray-700 text-sm font-bold mb-2"
-                  >Category Name:</label
+                >Category Name:</label
                 >
                 <input
                   type="text"
@@ -331,10 +312,10 @@
                   class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 />
               </div>
-              <div class="flex-none">
+              <div class="w-full sm:w-auto">
                 <button
                   type="submit"
-                  class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
+                  class="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center justify-center"
                 >
                   <Plus class="mr-2" size={20} />
                   Add Category
@@ -343,13 +324,13 @@
             </div>
           </form>
 
-          <h3 class="text-xl font-bold mb-4">Existing Categories:</h3>
+          <h3 class="text-lg sm:text-xl font-bold mb-4">Existing Categories:</h3>
           <div class="grid gap-4">
             {#each categories as category (category.id)}
               <div
                 class="bg-gray-100 p-4 rounded-lg flex items-center justify-between"
               >
-                <h4 class="text-lg font-semibold">{category.name}</h4>
+                <h4 class="text-base sm:text-lg font-semibold">{category.name}</h4>
                 <button
                   on:click={() => deleteCategory(category.id)}
                   class="text-red-500 hover:text-red-700"
@@ -359,20 +340,12 @@
               </div>
             {/each}
           </div>
-        </div>
-      {/if}
-
-      {#if activeTab === "courses"}
-        <div class="p-6">
-          <h2 class="text-2xl font-bold mb-4">Manage Courses</h2>
+        {:else if activeTab === "courses"}
+          <h2 class="text-xl sm:text-2xl font-bold mb-4">Manage Courses</h2>
           <form on:submit|preventDefault={addCourse} class="mb-6">
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label
-                  for="courseCategory"
-                  class="block text-gray-700 text-sm font-bold mb-2"
-                  >Category:</label
-                >
+                <label for="courseCategory" class="block text-gray-700 text-sm font-bold mb-2">Category:</label>
                 <select
                   id="courseCategory"
                   bind:value={newCourse.categoryId}
@@ -386,296 +359,256 @@
                 </select>
               </div>
               <div>
-                <label
-                  for="courseName"
-                  class="block text-gray-700 text-sm font-bold mb-2"
-                  >Course Name:</label
-                >
+                <label for="courseName" class="block text-gray-700 text-sm font-bold mb-2">Course Name:</label>
                 <input
                   type="text"
                   id="courseName"
                   bind:value={newCourse.name}
                   required
-                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  />
-                </div>
-                <div class="col-span-2">
-                  <fieldset>
-                    <legend class="block text-gray-700 text-sm font-bold mb-2"
-                      >Class Days:</legend
-                    >
-                    <div class="flex flex-wrap gap-2">
-                      {#each daysOfWeek as day}
-                        <label class="inline-flex items-center">
-                          <input
-                            type="checkbox"
-                            class="form-checkbox"
-                            checked={newCourse.classDays.includes(day.id)}
-                            on:change={() => toggleDay(day.id)}
-                          />
-                          <span class="ml-2">{day.name}</span>
-                        </label>
-                      {/each}
-                    </div>
-                  </fieldset>
-                </div>
-                <div>
-                  <label
-                    for="courseClassHours"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                    >Class Hours:</label
-                  >
-                  <input
-                    type="number"
-                    id="courseClassHours"
-                    bind:value={newCourse.classHours}
-                    step="0.5"
-                    required
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  />
-                </div>
-                <div>
-                  <label
-                    for="courseFeePerHour"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                    >Fee Per Hour:</label
-                  >
-                  <input
-                    type="number"
-                    id="courseFeePerHour"
-                    bind:value={newCourse.feePerHour}
-                    required
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  />
-                </div>
-                <div>
-                  <label
-                    for="courseStartDate"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                    >Start Date:</label
-                  >
-                  <input
-                    type="date"
-                    id="courseStartDate"
-                    bind:value={newCourse.courseStartDate}
-                    on:change={calculateDurationMonths}
-                    required
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  />
-                </div>
-                <div>
-                  <label
-                    for="courseEndDate"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                    >End Date:</label
-                  >
-                  <input
-                    type="date"
-                    id="courseEndDate"
-                    bind:value={newCourse.courseEndDate}
-                    on:change={calculateDurationMonths}
-                    required
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  />
-                </div>
-                <div>
-                  <label
-                    for="courseDurationMonths"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                    >Duration (Months):</label
-                  >
-                  <input
-                    type="number"
-                    id="courseDurationMonths"
-                    bind:value={newCourse.durationMonths}
-                    readonly
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-100"
-                  />
-                </div>
-                <div>
-                  <label
-                    for="courseTimeSlotStart"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                  >Time Slot Start:</label>
-                  <div class="flex space-x-2">
-                    <input
-                      type="text"
-                      id="courseTimeSlotStart"
-                      bind:value={newCourse.timeSlotStart}
-                      placeholder="HH:MM"
-                      pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
-                      required
-                      class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow"
-                    />
-                    <select
-                      bind:value={newCourse.timeSlotStartPeriod}
-                      class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                    >
-                      <option value="AM">AM</option>
-                      <option value="PM">PM</option>
-                    </select>
-                  </div>
-                </div>
+                  class="shadow appearance-none border rounded  w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                />
               </div>
-              <div class="mt-6">
-                <button
-                  type="submit"
-                  class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
-                >
-                  <Plus class="mr-2" size={20} />
-                  Add Course
-                </button>
-              </div>
-            </form>
-  
-            <h3 class="text-xl font-bold mb-4">Existing Courses:</h3>
-            <div class="grid gap-6">
-              {#each courses as course (course.id)}
-                <div class="bg-gray-100 p-6 rounded-lg">
-                  <h4 class="text-xl font-bold mb-2">{course.name}</h4>
-                  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <p class="flex items-center">
-                      <Book class="mr-2" size={16} /> Category: {categories.find(
-                        (c) => c.id === course.categoryId
-                      )?.name || "Uncategorized"}
-                    </p>
-                    <p class="flex items-center">
-                      <Calendar class="mr-2" size={16} /> Class Days: {formatDays(
-                        course.classDays
-                      )}
-                    </p>
-                    <p class="flex items-center">
-                      <Clock class="mr-2" size={16} /> Class Hours: {course.classHours}
-                    </p>
-                    <p class="flex items-center">
-                      <Calendar class="mr-2" size={16} /> Duration: {course.durationMonths}
-                      months
-                    </p>
-                    <p class="flex items-center">
-                      <JapaneseYen class="mr-2" size={16} /> Fee Per Hour: ¥ {course.feePerHour}
-                    </p>
-                    <p class="flex items-center">
-                      <Calendar class="mr-2" size={16} /> Start Date: {formatDate(
-                        course.courseStartDate
-                      )}
-                    </p>
-                    <p class="flex items-center">
-                      <Calendar class="mr-2" size={16} /> End Date: {formatDate(
-                        course.courseEndDate
-                      )}
-                    </p>
-                    <p class="flex items-center">
-                      <Clock class="mr-2" size={16} /> Time Slot: {course.timeSlot}
-                    </p>
-                    <p class="flex items-center">
-                      <Calendar class="mr-2" size={16} /> Created: {formatDate(
-                        course.createdAt
-                      )}
-                    </p>
-                    <p class="flex items-center">
-                      <User class="mr-2" size={16} /> Created by: {course.createdBy}
-                    </p>
-                  </div>
-                  <div class="mt-4 flex justify-end space-x-2">
-                    <button
-                      on:click={() => openUpdateModal(course)}
-                      class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
-                    >
-                      <Edit class="mr-2" size={16} />
-                      Update
-                    </button>
-                    <button
-                      on:click={() => deleteCourse(course.id)}
-                      class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
-                    >
-                      <Trash2 class="mr-2" size={16} />
-                      Delete
-                    </button>
-                  </div>
-                </div>
-              {/each}
-            </div>
-          </div>
-        {/if}
-  
-        {#if activeTab === "holidays"}
-          <div class="p-6">
-            <h2 class="text-2xl font-bold mb-4">Manage Holidays</h2>
-            <form on:submit|preventDefault={addHoliday} class="mb-6">
-              <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label
-                    for="holidayMonth"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                    >Month:</label
-                  >
-                  <select
-                    id="holidayMonth"
-                    bind:value={newHoliday.month}
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                  >
-                    {#each months as month, index}
-                      <option value={index + 1}>{month}</option>
+              <div class="col-span-2">
+                <fieldset>
+                  <legend class="block text-gray-700 text-sm font-bold mb-2">Class Days:</legend>
+                  <div class="flex flex-wrap gap-2">
+                    {#each daysOfWeek as day}
+                      <label class="inline-flex items-center">
+                        <input
+                          type="checkbox"
+                          class="form-checkbox"
+                          checked={newCourse.classDays.includes(day.id)}
+                          on:change={() => toggleDay(day.id)}
+                        />
+                        <span class="ml-2">{day.name}</span>
+                      </label>
                     {/each}
-                  </select>
-                </div>
-                <div>
-                  <label
-                    for="holidayDays"
-                    class="block text-gray-700 text-sm font-bold mb-2"
-                    >Days (comma-separated):</label
-                  >
+                  </div>
+                </fieldset>
+              </div>
+              <div>
+                <label for="courseClassHours" class="block text-gray-700 text-sm font-bold mb-2">Class Hours:</label>
+                <input
+                  type="number"
+                  id="courseClassHours"
+                  bind:value={newCourse.classHours}
+                  step="0.5"
+                  required
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                />
+              </div>
+              <div>
+                <label for="courseFeePerHour" class="block text-gray-700 text-sm font-bold mb-2">Fee Per Hour:</label>
+                <input
+                  type="number"
+                  id="courseFeePerHour"
+                  bind:value={newCourse.feePerHour}
+                  required
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                />
+              </div>
+              <div>
+                <label for="courseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Start Date:</label>
+                <input
+                  type="date"
+                  id="courseStartDate"
+                  bind:value={newCourse.courseStartDate}
+                  on:change={calculateDurationMonths}
+                  required
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                />
+              </div>
+              <div>
+                <label for="courseEndDate" class="block text-gray-700 text-sm font-bold mb-2">End Date:</label>
+                <input
+                  type="date"
+                  id="courseEndDate"
+                  bind:value={newCourse.courseEndDate}
+                  on:change={calculateDurationMonths}
+                  required
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                />
+              </div>
+              <div>
+                <label for="courseDurationMonths" class="block text-gray-700 text-sm font-bold mb-2">Duration (Months):</label>
+                <input
+                  type="number"
+                  id="courseDurationMonths"
+                  bind:value={newCourse.durationMonths}
+                  readonly
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline bg-gray-100"
+                />
+              </div>
+              <div>
+                <label for="courseTimeSlotStart" class="block text-gray-700 text-sm font-bold mb-2">Time Slot Start:</label>
+                <div class="flex space-x-2">
                   <input
                     type="text"
-                    id="holidayDays"
-                    bind:value={newHoliday.days}
+                    id="courseTimeSlotStart"
+                    bind:value={newCourse.timeSlotStart}
+                    placeholder="HH:MM"
+                    pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
                     required
-                    placeholder="1, 2, 3"
-                    class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow"
                   />
+                  <select
+                    bind:value={newCourse.timeSlotStartPeriod}
+                    class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  >
+                    <option value="AM">AM</option>
+                    <option value="PM">PM</option>
+                  </select>
                 </div>
               </div>
-              <div class="mt-6">
-                <button
-                  type="submit"
-                  class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center"
-                >
-                  <Plus class="mr-2" size={20} />
-                  Add Holiday
-                </button>
-              </div>
-            </form>
-  
-            <h3 class="text-xl font-bold mb-4">Existing Holidays:</h3>
-            <div class="grid gap-4">
-              {#each holidays as holiday (holiday.id)}
-                <div
-                  class="bg-gray-100 p-4 rounded-lg flex items-center justify-between"
-                >
-                  <p class="font-semibold">
-                    {months[holiday.month - 1]}: {holiday.days.join(", ")}
+            </div>
+            <div class="mt-6">
+              <button
+                type="submit"
+                class="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center justify-center"
+              >
+                <Plus class="mr-2" size={20} />
+                Add Course
+              </button>
+            </div>
+          </form>
+
+          <h3 class="text-lg sm:text-xl font-bold mb-4">Existing Courses:</h3>
+          <div class="grid gap-6">
+            {#each courses as course (course.id)}
+              <div class="bg-gray-100 p-4 sm:p-6 rounded-lg">
+                <h4 class="text-lg sm:text-xl font-bold mb-2">{course.name}</h4>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm sm:text-base">
+                  <p class="flex items-center">
+                    <Book class="mr-2" size={16} /> Category: {categories.find(
+                      (c) => c.id === course.categoryId
+                    )?.name || "Uncategorized"}
                   </p>
+                  <p class="flex items-center">
+                    <Calendar class="mr-2" size={16} /> Class Days: {formatDays(
+                      course.classDays
+                    )}
+                  </p>
+                  <p class="flex items-center">
+                    <Clock class="mr-2" size={16} /> Class Hours: {course.classHours}
+                  </p>
+                  <p class="flex items-center">
+                    <Calendar class="mr-2" size={16} /> Duration: {course.durationMonths}
+                    months
+                  </p>
+                  <p class="flex items-center">
+                    <JapaneseYen class="mr-2" size={16} /> Fee Per Hour: ¥ {course.feePerHour}
+                  </p>
+                  <p class="flex items-center">
+                    <Calendar class="mr-2" size={16} /> Start Date: {formatDate(
+                      course.courseStartDate
+                    )}
+                  </p>
+                  <p class="flex items-center">
+                    <Calendar class="mr-2" size={16} /> End Date: {formatDate(
+                      course.courseEndDate
+                    )}
+                  </p>
+                  <p class="flex items-center">
+                    <Clock class="mr-2" size={16} /> Time Slot: {course.timeSlot}
+                  </p>
+                  <p class="flex items-center">
+                    <Calendar class="mr-2" size={16} /> Created: {formatDate(
+                      course.createdAt
+                    )}
+                  </p>
+                  <p class="flex items-center">
+                    <User class="mr-2" size={16} /> Created by: {course.createdBy}
+                  </p>
+                </div>
+                <div class="mt-4 flex flex-wrap justify-end space-x-2 space-y-2 sm:space-y-0">
                   <button
-                    on:click={() => deleteHoliday(holiday.id)}
-                    class="text-red-500 hover:text-red-700"
+                    on:click={() => openUpdateModal(course)}
+                    class="w-full sm:w-auto bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center justify-center"
                   >
-                    <Trash2 size={20} />
+                    <Edit class="mr-2" size={16} />
+                    Update
+                  </button>
+                  <button
+                    on:click={() => deleteCourse(course.id)}
+                    class="w-full sm:w-auto bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center justify-center"
+                  >
+                    <Trash2 class="mr-2" size={16} />
+                    Delete
                   </button>
                 </div>
-              {/each}
+              </div>
+            {/each}
+          </div>
+        {:else if activeTab === "holidays"}
+          <h2 class="text-xl sm:text-2xl font-bold mb-4">Manage Holidays</h2>
+          <form on:submit|preventDefault={addHoliday} class="mb-6">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label for="holidayMonth" class="block text-gray-700 text-sm font-bold mb-2">Month:</label>
+                <select
+                  id="holidayMonth"
+                  bind:value={newHoliday.month}
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                >
+                  {#each months as month, index}
+                    <option value={index + 1}>{month}</option>
+                  {/each}
+                </select>
+              </div>
+              <div>
+                <label for="holidayDays" class="block text-gray-700 text-sm font-bold mb-2">Days (comma-separated):</label>
+                <input
+                  type="text"
+                  id="holidayDays"
+                  bind:value={newHoliday.days}
+                  required
+                  placeholder="1, 2, 3"
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                />
+              </div>
             </div>
+            <div class="mt-6">
+              <button
+                type="submit"
+                class="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center justify-center"
+              >
+                <Plus class="mr-2" size={20} />
+                Add Holiday
+              </button>
+            </div>
+          </form>
+
+          <h3 class="text-lg sm:text-xl font-bold mb-4">Existing Holidays:</h3>
+          <div class="grid gap-4">
+            {#each holidays as holiday (holiday.id)}
+              <div
+                class="bg-gray-100 p-4 rounded-lg flex items-center justify-between"
+              >
+                <p class="font-semibold text-sm sm:text-base">
+                  {months[holiday.month - 1]}: {holiday.days.join(", ")}
+                </p>
+                <button
+                  on:click={() => deleteHoliday(holiday.id)}
+                  class="text-red-500 hover:text-red-700"
+                >
+                  <Trash2 size={20} />
+                </button>
+              </div>
+            {/each}
           </div>
         {/if}
       </div>
-    </main>
-  {/if}
-  {#if showUpdateModal && courseToUpdate}
+    </div>
+  </main>
+{/if}
+
+{#if showUpdateModal && courseToUpdate}
   <div
-    class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center"
+    class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center p-4"
     id="update-course-modal"
   >
     <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-      <h3 class="text-2xl font-bold mb-4 text-center text-gray-800">
+      <h3 class="text-xl sm:text-2xl font-bold mb-4 text-center text-gray-800">
         Update Course
       </h3>
       <form on:submit|preventDefault={updateCourse} class="space-y-4">
@@ -786,9 +719,11 @@
           </label>
           <div class="flex space-x-2">
             <input
-              type="time"
+              type="text"
               id="updateCourseTimeSlotStart"
               bind:value={courseToUpdate.timeSlotStart}
+              placeholder="HH:MM"
+              pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
               required
               class="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -802,30 +737,17 @@
           </div>
         </div>
 
-        <div>
-          <label for="updateCourseTimeSlot" class="block text-gray-700 font-bold mb-2">
-            Time Slot:
-          </label>
-          <input
-            type="text"
-            id="updateCourseTimeSlot"
-            value={courseToUpdate.timeSlot}
-            readonly
-            class="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-100"
-          />
-        </div>
-
-        <div class="flex justify-end space-x-2 mt-6">
+        <div class="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 mt-6">
           <button
             type="button"
             on:click={closeUpdateModal}
-            class="px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            class="w-full sm:w-auto px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
           >
             Cancel
           </button>
           <button
             type="submit"
-            class="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="w-full sm:w-auto px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
             Update
           </button>
