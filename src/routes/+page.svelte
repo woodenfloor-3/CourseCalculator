@@ -192,13 +192,13 @@
     }
 
     // Add monthly breakdown
-    doc.addPage();
-    doc.text('Monthly Breakdown:', 14, 20);
-    doc.autoTable({
-      startY: 24,
-      head: [['Month', 'Hours', 'Fees (¥)']],
-      body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
-    });
+    doc.text('Monthly Breakdown:', 14, doc.lastAutoTable.finalY + 30);
+  doc.autoTable({
+    startY: doc.lastAutoTable.finalY + 34,
+    head: [['Month', 'Hours', 'Fees (¥)']],
+    body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
+    margin: { top: 10 },
+  });
     
     // Generate a unique filename
     const joinDate = new Date(calculatedFees.studentJoinDate).toISOString().split('T')[0];
