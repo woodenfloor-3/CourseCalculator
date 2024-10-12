@@ -1,7 +1,8 @@
 <script>
   import { onMount } from 'svelte';
-  import { db } from '$lib/firebase';
-  import { collection, getDocs } from 'firebase/firestore';
+  import { db, storage } from '$lib/firebase';
+  import { collection, getDocs, query, where, addDoc } from 'firebase/firestore';
+  import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
   import { jsPDF } from 'jspdf';
   import 'jspdf-autotable';
 
@@ -15,11 +16,13 @@
   let paymentOption = 'full';
   let installmentEndDate = '';
   let activeTab = 'calculator';
+  let pdfUrl = '';
+  let isExporting = false;
 
   const REGISTRATION_FEE = 5000;
   const TAX_RATE = 0.1; // 10% tax rate
 
-  //Logo source
+  // Logo source
   const logoUrl = '/logoeek.png';
 
   onMount(async () => {
@@ -48,10 +51,6 @@
   function isHoliday(date) {
     const holiday = holidays.find(h => h.month === date.getMonth() + 1);
     return holiday ? holiday.days.includes(date.getDate()) : false;
-  }
-
-  function isLeapYear(year) {
-    return (year % 4 === 0 && year % 100 !== 0) || (year % 400 === 0);
   }
 
   function calculateFees() {
@@ -97,7 +96,6 @@
         currentMonthDays++;
       }
 
-      // Check if it's the last day of the month or the last day of the course
       const nextDate = new Date(currentDate);
       nextDate.setDate(nextDate.getDate() + 1);
       const isLastDayOfMonth = currentDate.getMonth() !== nextDate.getMonth();
@@ -152,10 +150,12 @@
     activeTab = 'results';
   }
   
-  function exportToPDF() {
+  async function exportToPDF() {
+    isExporting = true;
     const doc = new jsPDF();
+   
     
-    //Add logo
+    // Add logo
     doc.addImage(logoUrl, 'PNG', 170, 10, 38, 10);
     // Add title
     doc.setFontSize(18);
@@ -200,8 +200,64 @@
       body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
     });
     
-    // Save the PDF with the course name
-    doc.save(`${calculatedFees.course}_fee_calculation.pdf`);
+    // Generate a unique filename
+    const joinDate = new Date(calculatedFees.studentJoinDate).toISOString().split('T')[0];
+    const installmentEndDateString = paymentOption === 'installment' ? `_endDate${installmentEndDate}` : '';
+    const fileName = `${calculatedFees.course}_${paymentOption}_${calculatedFees.courseDuration}months_${joinDate}${installmentEndDateString}.pdf`;
+    
+    try {
+      // Check if a file with the same details already exists
+      const q = query(
+        collection(db, 'pdfs'),
+        where('course', '==', calculatedFees.course),
+        where('paymentOption', '==', paymentOption),
+        where('duration', '==', calculatedFees.courseDuration),
+        where('joinDate', '==', joinDate),
+        where('installmentEndDate', '==', installmentEndDate || null)
+       
+      );
+      const querySnapshot = await getDocs(q);
+
+      if (!querySnapshot.empty) {
+        // If a matching file exists, use its URL
+        pdfUrl = querySnapshot.docs[0].data().url;
+      } else {
+        // If no matching file exists, upload the new one
+        const pdfBlob = doc.output('blob');
+        const fileRef = ref(storage, `pdfs/${fileName}`);
+        await uploadBytes(fileRef, pdfBlob);
+        pdfUrl = await getDownloadURL(fileRef);
+        
+        // Save the file information to Firestore
+        await addDoc(collection(db, 'pdfs'), {
+          fileName: fileName,
+          url: pdfUrl,
+          course: calculatedFees.course,
+          paymentOption: paymentOption,
+          duration: calculatedFees.courseDuration,
+          joinDate: joinDate,
+          installmentEndDate: installmentEndDate || null,
+          createdAt: new Date()
+        });
+      }
+    } catch (error) {
+      console.error('Error handling PDF:', error);
+      alert('Failed to handle PDF. Please try again.');
+    } finally {
+      isExporting = false;
+    }
+  }
+  function downloadPDF() {
+    if (pdfUrl) {
+      window.open(pdfUrl, '_blank');
+      const link = document.createElement('a');
+      link.href = pdfUrl;
+      link.download = `${calculatedFees.course}_fee_calculation.pdf`;
+      link.target = '_blank';  // This ensures it doesn't affect the current tab
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
   }
 
   $: filteredCourses = selectedCategory 
@@ -304,8 +360,9 @@
           id="studentJoinDate"
           bind:value={studentJoinDate}
           min={selectedCourse?.courseStartDate}
+          
           max={selectedCourse?.courseEndDate}
-          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none  focus:shadow-outline"
         />
       </div>
 
@@ -322,7 +379,7 @@
       </div>
 
       {#if paymentOption === 'installment'}
-        <div class="mb-4">
+        <div  class="mb-4">
           <label for="installmentEndDate" class="block text-gray-700 text-sm font-bold mb-2">Installment End Date:</label>
           <input
             type="date"
@@ -410,13 +467,22 @@
         </div>
       </div>
 
-      <div class="mt-6 flex justify-center">
+      <div class="mt-6 flex justify-center gap-4">
         <button
           on:click={exportToPDF}
           class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline text-sm sm:text-base"
+          disabled={isExporting}
         >
-          Export to PDF
+          {isExporting ? 'Exporting...' : 'Export to PDF'}
         </button>
+        {#if pdfUrl}
+          <button
+            on:click={downloadPDF}
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline text-sm sm:text-base"
+          >
+            Download PDF
+          </button>
+        {/if}
       </div>
     {/if}
   </div>

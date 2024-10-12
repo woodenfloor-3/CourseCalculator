@@ -1,6 +1,6 @@
 <script>
   import { onMount } from "svelte";
-  import { db, auth } from "$lib/firebase";
+  import { db, auth, storage } from "$lib/firebase";
   import {
     collection,
     addDoc,
@@ -20,11 +20,17 @@
     Book,
     JapaneseYen,
     User,
+    Download,
+    Copy,
+    FileText,
+    HardDrive,
   } from "lucide-svelte";
+  import { ref, getDownloadURL, listAll, deleteObject, getMetadata } from 'firebase/storage';
 
   let categories = [];
   let courses = [];
   let holidays = [];
+  let pdfs = [];
   let newCategory = { name: "" };
   let newCourse = {
     name: "",
@@ -43,6 +49,7 @@
   let activeTab = "categories";
   let showUpdateModal = false;
   let courseToUpdate = null;
+  let storageUsage = { used: 0, total: 5 * 1024 * 1024 * 1024 }; // Assuming 5GB total storage
 
   const daysOfWeek = [
     { id: 0, name: "Sunday" },
@@ -66,6 +73,8 @@
         fetchCategories();
         fetchCourses();
         fetchHolidays();
+        fetchPDFs();
+        fetchStorageUsage();
       } else {
         goto("/login");
       }
@@ -92,6 +101,55 @@
     holidays = querySnapshot.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
   }
 
+  async function fetchPDFs() {
+    const pdfRef = ref(storage, 'pdfs');
+    const pdfList = await listAll(pdfRef);
+    pdfs = await Promise.all(pdfList.items.map(async (item) => {
+      const url = await getDownloadURL(item);
+      const metadata = await getMetadata(item);
+      return {
+        name: item.name,
+        url: url,
+        size: metadata.size,
+        createdAt: metadata.timeCreated
+      };
+    }));
+  }
+
+ 
+
+async function fetchStorageUsage() {
+  const storageRef = ref(storage);
+  let totalSize = 0;
+  
+  async function calculateSize(ref) {
+    const result = await listAll(ref);
+    
+    for (const itemRef of result.items) {
+      const metadata = await getMetadata(itemRef);
+      totalSize += metadata.size;
+    }
+    
+    for (const prefixRef of result.prefixes) {
+      await calculateSize(prefixRef);
+    }
+  }
+  
+  try {
+    await calculateSize(storageRef);
+    storageUsage.used = totalSize;
+  } catch (error) {
+    console.error("Error calculating storage usage:", error);
+  }
+  function formatSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
+
+}
   async function addCategory() {
     await addDoc(collection(db, "categories"), newCategory);
     fetchCategories();
@@ -263,16 +321,38 @@
     const date = new Date(dateString);
     return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getFullYear()}`;
   }
+
+  function copyLink(url) {
+    navigator.clipboard.writeText(url);
+    alert('Link copied to clipboard!');
+  }
+
+  async function deletePDF(name) {
+    if (confirm(`Are you sure you want to delete ${name}?`)) {
+      const pdfRef = ref(storage, `pdfs/${name}`);
+      await deleteObject(pdfRef);
+      await fetchPDFs();
+      await fetchStorageUsage();
+    }
+  }
+
+  function formatSize(bytes) {
+    if (bytes === 0) return '0 Bytes';
+    const k = 1024;
+    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  }
 </script>
 
 {#if user}
-  <main class="container mx-auto p-4">
+  <main class="container mx-auto p-4 max-w-7xl">
     <h1 class="text-2xl sm:text-4xl font-bold mb-8 text-center text-blue-600">
       Admin Dashboard
     </h1>
 
     <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
-      <div class="flex flex-wrap border-b">
+      <div class="flex flex-wrap sm:flex-nowrap border-b">
         <button
           class="flex-1 py-2 sm:py-4 px-4 sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'categories' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
           on:click={() => (activeTab = "categories")}
@@ -290,6 +370,12 @@
           on:click={() => (activeTab = "holidays")}
         >
           Holidays
+        </button>
+        <button
+          class="flex-1 py-2 sm:py-4 px-4 sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'pdfs' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
+          on:click={() => (activeTab = "pdfs")}
+        >
+          Course PDFs
         </button>
       </div>
 
@@ -309,13 +395,13 @@
                   id="categoryName"
                   bind:value={newCategory.name}
                   required
-                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  class="shadow appearance-none border rounded  w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 />
               </div>
               <div class="w-full sm:w-auto">
                 <button
                   type="submit"
-                  class="w-full sm:w-auto bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center justify-center"
+                  class="w-full sm:w-auto bg-blue-500  hover:bg-blue-700 text-white font-bold mt-6 py-2 px-4 rounded focus:outline-none focus:shadow-outline flex items-center justify-center"
                 >
                   <Plus class="mr-2" size={20} />
                   Add Category
@@ -596,166 +682,192 @@
               </div>
             {/each}
           </div>
+        {:else if activeTab === "pdfs"}
+          <h2 class="text-xl sm:text-2xl font-bold mb-4">Course PDFs and Storage Usage</h2>
+          
+          <div class="mb-6 bg-gray-100 p-4 rounded-lg">
+            <h3 class="text-lg font-semibold mb-2">Storage Usage</h3>
+            <div class="flex items-center space-x-2">
+              <HardDrive size={24} />
+              <div class="flex-1">
+                <div class="h-2 bg-gray-300 rounded-full">
+                  <div
+                    class="h-2 bg-blue-500 rounded-full"
+                    style="width: {(storageUsage.used / storageUsage.total) * 100}%"
+                  ></div>
+                </div>
+              </div>
+              <span class="text-sm font-medium">
+                {formatSize(storageUsage.used)} / {formatSize(storageUsage.total)}
+              </span>
+            </div>
+            <p class="text-sm text-gray-600 mt-2">
+              {((storageUsage.used / storageUsage.total) * 100).toFixed(2)}% of storage used
+            </p>
+          </div>
+
+          <h3 class="text-lg sm:text-xl font-bold mb-4">Existing PDFs:</h3>
+          <div class="grid gap-4">
+            {#each pdfs as pdf (pdf.name)}
+              <div class="bg-gray-100 p-4 rounded-lg flex items-center justify-between">
+                <div class="flex items-center space-x-4">
+                  <FileText size={24} />
+                  <div>
+                    <h4 class="text-base sm:text-lg font-semibold">{pdf.name}</h4>
+                    <p class="text-sm text-gray-600">Size: {formatSize(pdf.size)}</p>
+                  </div>
+                </div>
+                <div class="flex space-x-2">
+                  <a href={pdf.url} target="_blank" rel="noopener noreferrer" class="text-blue-500 hover:text-blue-700">
+                    <Download size={20} />
+                  </a>
+                  <button on:click={() => copyLink(pdf.url)} class="text-green-500 hover:text-green-700">
+                    <Copy size={20} />
+                  </button>
+                  <button on:click={() => deletePDF(pdf.name)} class="text-red-500 hover:text-red-700">
+                    <Trash2 size={20} />
+                  </button>
+                </div>
+              </div>
+            {/each}
+          </div>
         {/if}
       </div>
     </div>
   </main>
 {/if}
 
-{#if showUpdateModal && courseToUpdate}
-  <div
-    class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full flex items-center justify-center p-4"
-    id="update-course-modal"
-  >
-    <div class="bg-white rounded-lg shadow-xl p-6 w-full max-w-md">
-      <h3 class="text-xl sm:text-2xl font-bold mb-4 text-center text-gray-800">
-        Update Course
-      </h3>
-      <form on:submit|preventDefault={updateCourse} class="space-y-4">
-        <div>
-          <label for="updateCourseName" class="block text-gray-700 font-bold mb-2">
-            Course Name:
-          </label>
-          <input
-            type="text"
-            id="updateCourseName"
-            bind:value={courseToUpdate.name}
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label for="updateCourseCategory" class="block text-gray-700 font-bold mb-2">
-            Category:
-          </label>
-          <select
-            id="updateCourseCategory"
-            bind:value={courseToUpdate.categoryId}
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {#each categories as category}
-              <option value={category.id}>{category.name}</option>
-            {/each}
-          </select>
-        </div>
-
-        <div>
-          <fieldset>
-            <legend class="block text-gray-700 font-bold mb-2">Class Days:</legend>
-            <div class="flex flex-wrap gap-2">
-              {#each daysOfWeek as day}
-                <label class="inline-flex items-center">
-                  <input
-                    type="checkbox"
-                    class="form-checkbox"
-                    checked={courseToUpdate.classDays.includes(day.id)}
-                    on:change={() => toggleUpdateDay(day.id)}
-                  />
-                  <span class="ml-2">{day.name}</span>
-                </label>
-              {/each}
-            </div>
-          </fieldset>
-        </div>
-
-        <div>
-          <label for="updateCourseClassHours" class="block text-gray-700 font-bold mb-2">
-            Class Hours:
-          </label>
-          <input
-            type="number"
-            id="updateCourseClassHours"
-            bind:value={courseToUpdate.classHours}
-            step="0.5"
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label for="updateCourseFeePerHour" class="block text-gray-700 font-bold mb-2">
-            Fee Per Hour:
-          </label>
-          <input
-            type="number"
-            id="updateCourseFeePerHour"
-            bind:value={courseToUpdate.feePerHour}
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label for="updateCourseStartDate" class="block text-gray-700 font-bold mb-2">
-            Start Date:
-          </label>
-          <input
-            type="date"
-            id="updateCourseStartDate"
-            bind:value={courseToUpdate.courseStartDate}
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label for="updateCourseEndDate" class="block text-gray-700 font-bold mb-2">
-            End Date:
-          </label>
-          <input
-            type="date"
-            id="updateCourseEndDate"
-            bind:value={courseToUpdate.courseEndDate}
-            required
-            class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-        </div>
-
-        <div>
-          <label for="updateCourseTimeSlotStart" class="block text-gray-700 font-bold mb-2">
-            Time Slot Start:
-          </label>
-          <div class="flex space-x-2">
-            <input
-              type="text"
-              id="updateCourseTimeSlotStart"
-              bind:value={courseToUpdate.timeSlotStart}
-              placeholder="HH:MM"
-              pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
-              required
-              class="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+{#if showUpdateModal}
+  <div class="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+    <div class="relative top-20 mx-auto p-5 border w-full max-w-md sm:max-w-xl md:max-w-2xl shadow-lg rounded-md bg-white">
+      <h3 class="text-lg font-bold mb-4">Update Course</h3>
+      <form on:submit|preventDefault={updateCourse}>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <div>
+            <label for="updateCourseCategory" class="block text-gray-700 text-sm font-bold mb-2">Category:</label>
             <select
-              bind:value={courseToUpdate.timeSlotStartPeriod}
-              class="px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              id="updateCourseCategory"
+              bind:value={courseToUpdate.categoryId}
+              required
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             >
-              <option value="AM">AM</option>
-              <option value="PM">PM</option>
+              <option value="">Select a category</option>
+              {#each categories as category}
+                <option value={category.id}>{category.name}</option>
+              {/each}
             </select>
           </div>
+          <div>
+            <label for="updateCourseName" class="block text-gray-700 text-sm font-bold mb-2">Course Name:</label>
+            <input
+              type="text"
+              id="updateCourseName"
+              bind:value={courseToUpdate.name}
+              required
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div class="col-span-2">
+            <fieldset>
+              <legend class="block text-gray-700 text-sm font-bold mb-2">Class Days:</legend>
+              <div class="flex flex-wrap gap-2">
+                {#each daysOfWeek as day}
+                  <label class="inline-flex items-center">
+                    <input
+                      type="checkbox"
+                      class="form-checkbox"
+                      checked={courseToUpdate.classDays.includes(day.id)}
+                      on:change={() => toggleUpdateDay(day.id)}
+                    />
+                    <span class="ml-2">{day.name}</span>
+                  </label>
+                {/each}
+              </div>
+            </fieldset>
+          </div>
+          <div>
+            <label for="updateCourseClassHours" class="block text-gray-700 text-sm font-bold mb-2">Class Hours:</label>
+            <input
+              type="number"
+              id="updateCourseClassHours"
+              bind:value={courseToUpdate.classHours}
+              step="0.5"
+              required
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div>
+            <label for="updateCourseFeePerHour" class="block text-gray-700 text-sm font-bold mb-2">Fee Per Hour:</label>
+            <input
+              type="number"
+              id="updateCourseFeePerHour"
+              bind:value={courseToUpdate.feePerHour}
+              required
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div>
+            <label for="updateCourseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Start Date:</label>
+            <input
+              type="date"
+              id="updateCourseStartDate"
+              bind:value={courseToUpdate.courseStartDate}
+              required
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div>
+            <label for="updateCourseEndDate" class="block text-gray-700 text-sm font-bold mb-2">End Date:</label>
+            <input
+              type="date"
+              id="updateCourseEndDate"
+              bind:value={courseToUpdate.courseEndDate}
+              required
+              class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+            />
+          </div>
+          <div>
+            <label for="updateCourseTimeSlotStart" class="block text-gray-700 text-sm font-bold mb-2">Time Slot Start:</label>
+            <div class="flex space-x-2">
+              <input
+                type="text"
+                id="updateCourseTimeSlotStart"
+                bind:value={courseToUpdate.timeSlotStart}
+                placeholder="HH:MM"
+                pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
+                required
+                class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow"
+              />
+              <select
+                bind:value={courseToUpdate.timeSlotStartPeriod}
+                class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+              >
+                <option value="AM">AM</option>
+                <option value="PM">PM</option>
+              </select>
+            </div>
+          </div>
         </div>
-
-        <div class="flex flex-col sm:flex-row justify-end space-y-2 sm:space-y-0 sm:space-x-2 mt-6">
+        <div class="mt-6 flex justify-end space-x-2">
           <button
             type="button"
             on:click={closeUpdateModal}
-            class="w-full sm:w-auto px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 focus:outline-none focus:ring-2 focus:ring-gray-500"
+            class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
             Cancel
           </button>
           <button
             type="submit"
-            class="w-full sm:w-auto px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline"
           >
-            Update
+            Update Course
           </button>
         </div>
       </form>
     </div>
   </div>
 {/if}
+
 
 <style>
   :global(body) {
