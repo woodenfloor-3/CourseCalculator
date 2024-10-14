@@ -156,7 +156,7 @@
    
     
     // Add logo
-    doc.addImage(logoUrl, 'JPG', 170, 10, 80, 60);
+    doc.addImage(logoUrl, 'JPG', 170, 5, 40, 40);
     // Add title
     doc.setFontSize(18);
     doc.text('Course Fee Calculation', 14, 22);
