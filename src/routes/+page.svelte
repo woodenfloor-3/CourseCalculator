@@ -23,7 +23,7 @@
   const TAX_RATE = 0.1; // 10% tax rate
 
   // Logo source
-  const logoUrl = '/logoeek.png';
+  const logoUrl = '/logo.jpg';
 
   onMount(async () => {
     await fetchCategories();
@@ -156,7 +156,7 @@
    
     
     // Add logo
-    doc.addImage(logoUrl, 'PNG', 170, 10, 38, 10);
+    doc.addImage(logoUrl, 'JPG', 170, 10, 80, 60);
     // Add title
     doc.setFontSize(18);
     doc.text('Course Fee Calculation', 14, 22);
@@ -248,17 +248,22 @@
     }
   }
   function downloadPDF() {
-    if (pdfUrl) {
+  if (pdfUrl) {
+    try {
       window.open(pdfUrl, '_blank');
       const link = document.createElement('a');
       link.href = pdfUrl;
       link.download = `${calculatedFees.course}_fee_calculation.pdf`;
-      link.target = '_blank';  // This ensures it doesn't affect the current tab
+      link.target = '_blank';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
+    } catch (error) {
+      console.error('Error downloading PDF:', error);
+      alert('Failed to download PDF. Please try again.');
     }
   }
+}
 
   $: filteredCourses = selectedCategory 
     ? courses.filter(course => course.categoryId === selectedCategory.id)
