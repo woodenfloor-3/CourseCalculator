@@ -221,11 +221,11 @@
       );
       const querySnapshot = await getDocs(q);
 
-      if (!querySnapshot.empty) {
-        // If a matching file exists, use its URL
-        console.log("Existing file found, using its URL");
-        pdfUrl = querySnapshot.docs[0].data().url;
-      } else {
+      // if (!querySnapshot.empty) {
+      //   // If a matching file exists, use its URL
+      //   console.log("Existing file found, using its URL");
+      //   pdfUrl = querySnapshot.docs[0].data().url;
+      // } else {
         
         // If no matching file exists, upload the new one
         console.log("No existing file found, uploading new one");
@@ -246,7 +246,7 @@
           installmentEndDate: installmentEndDate || null,
           createdAt: new Date()
         });
-      }
+      
       console.log("PDF export completed successfully");
     } catch (error) {
       console.error('Error handling PDF:', error);
