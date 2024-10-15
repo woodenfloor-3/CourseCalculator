@@ -152,6 +152,7 @@
   
   async function exportToPDF() {
     isExporting = true;
+    try {
     const doc = new jsPDF();
    
     
@@ -199,13 +200,15 @@
     body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
     margin: { top: 10 },
   });
+
+  console.log("PDF generated, attempting to save/upload");
     
     // Generate a unique filename
     const joinDate = new Date(calculatedFees.studentJoinDate).toISOString().split('T')[0];
     const installmentEndDateString = paymentOption === 'installment' ? `_endDate${installmentEndDate}` : '';
     const fileName = `${calculatedFees.course}_${paymentOption}_${calculatedFees.courseDuration}months_${joinDate}${installmentEndDateString}.pdf`;
     
-    try {
+    console.log("Checking for existing file");
       // Check if a file with the same details already exists
       const q = query(
         collection(db, 'pdfs'),
@@ -220,15 +223,19 @@
 
       if (!querySnapshot.empty) {
         // If a matching file exists, use its URL
+        console.log("Existing file found, using its URL");
         pdfUrl = querySnapshot.docs[0].data().url;
       } else {
+        
         // If no matching file exists, upload the new one
+        console.log("No existing file found, uploading new one");
         const pdfBlob = doc.output('blob');
         const fileRef = ref(storage, `pdfs/${fileName}`);
         await uploadBytes(fileRef, pdfBlob);
         pdfUrl = await getDownloadURL(fileRef);
         
         // Save the file information to Firestore
+        console.log("File uploaded, saving information to Firestore");
         await addDoc(collection(db, 'pdfs'), {
           fileName: fileName,
           url: pdfUrl,
@@ -240,9 +247,10 @@
           createdAt: new Date()
         });
       }
+      console.log("PDF export completed successfully");
     } catch (error) {
       console.error('Error handling PDF:', error);
-      alert('Failed to handle PDF. Please try again.');
+      alert(`Failed to export PDF: ${error.message}`);
     } finally {
       isExporting = false;
     }
