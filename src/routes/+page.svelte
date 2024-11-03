@@ -38,9 +38,12 @@
 
   async function fetchCourses() {
     const querySnapshot = await getDocs(collection(db, 'courses'));
-    courses = querySnapshot.docs.map(doc => ({ id: doc.id, ...doc.data(),
-      courseTime: doc.data().timeSlot
-     }));
+    courses = querySnapshot.docs.map(doc => ({ 
+      id: doc.id, 
+      ...doc.data(),
+      courseTime: doc.data().timeSlot,
+      additionalTimeSlots: doc.data().additionalTimeSlots || []
+    }));
   }
 
   async function fetchHolidays() {
@@ -96,6 +99,14 @@
         currentMonthDays++;
       }
 
+      // Check additional time slots
+      selectedCourse.additionalTimeSlots.forEach(slot => {
+        if (slot.days.includes(currentDate.getDay()) && !isHoliday(currentDate)) {
+          totalHours += selectedCourse.classHours;
+          currentMonthHours += selectedCourse.classHours;
+        }
+      });
+
       const nextDate = new Date(currentDate);
       nextDate.setDate(nextDate.getDate() + 1);
       const isLastDayOfMonth = currentDate.getMonth() !== nextDate.getMonth();
@@ -138,6 +149,7 @@
       courseDays: selectedCourse.classDays.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', '),
       courseDuration: selectedCourse.durationMonths,
       courseTime: selectedCourse.courseTime,
+      additionalTimeSlots: selectedCourse.additionalTimeSlots,
       monthlyBreakdown
     };
 
@@ -153,62 +165,72 @@
   async function exportToPDF() {
     isExporting = true;
     try {
-    const doc = new jsPDF();
-   
-    
-    // Add logo
-    doc.addImage(logoUrl, 'JPG', 170, 5, 40, 40);
-    // Add title
-    doc.setFontSize(18);
-    doc.text('Course Fee Calculation', 14, 22);
+      const doc = new jsPDF();
+      
+      // Add logo
+      doc.addImage(logoUrl, 'JPG', 170, 5, 40, 40);
+      // Add title
+      doc.setFontSize(18);
+      doc.text('Course Fee Calculation', 14, 22);
 
-    // Add course details
-    doc.setFontSize(12);
-    doc.text(`Course: ${calculatedFees.course}`, 14, 32);
-    doc.text(`Total Hours: ${calculatedFees.totalHours}`, 14, 40);
-    doc.text(`Course Start: ${calculatedFees.courseStartDate}`, 14, 48);
-    doc.text(`Student Join: ${calculatedFees.studentJoinDate}`, 14, 56);
-    doc.text(`Course End: ${calculatedFees.courseEndDate}`, 14, 64);
-    doc.text(`Course Days: ${calculatedFees.courseDays}`, 14, 72);
-    doc.text(`Course Time: ${calculatedFees.courseTime}`, 14, 80);
+      // Add course details
+      doc.setFontSize(12);
+      doc.text(`Course: ${calculatedFees.course}`, 14, 32);
+      doc.text(`Total Hours: ${calculatedFees.totalHours}`, 14, 40);
+      doc.text(`Course Start: ${calculatedFees.courseStartDate}`, 14, 48);
+      doc.text(`Student Join: ${calculatedFees.studentJoinDate}`, 14, 56);
+      doc.text(`Course End: ${calculatedFees.courseEndDate}`, 14, 64);
+      doc.text(`Course Days: ${calculatedFees.courseDays}`, 14, 72);
+      doc.text(`Course Time: ${calculatedFees.courseTime}`, 14, 80);
 
-    // Add fee breakdown
-    doc.text('Fee Breakdown:', 14, 92);
-    doc.autoTable({
-      startY: 96,
-      head: [['Item', 'Amount (¥)']],
-      body: [
-        ['Course Fees', calculatedFees.courseFees.toFixed(2)],
-        ['Registration Fee', calculatedFees.registrationFee.toFixed(2)],
-        ['Sub Total', calculatedFees.subTotal.toFixed(2)],
-        ['Tax (10%)', calculatedFees.taxAmount.toFixed(2)],
-        ['Total Fees', calculatedFees.totalFeesWithTax.toFixed(2)]
-      ],
-    });
+      // Add additional time slots
+      let yPos = 88;
+      if (calculatedFees.additionalTimeSlots && calculatedFees.additionalTimeSlots.length > 0) {
+        doc.text('Additional Time Slots:', 14, yPos);
+        yPos += 8;
+        calculatedFees.additionalTimeSlots.forEach((slot, index) => {
+          doc.text(`Slot ${index + 1}: ${slot.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} - ${slot.timeSlot}`, 14, yPos);
+          yPos += 8;
+        });
+      }
 
-    // Add installment details if applicable
-    if (paymentOption === 'installment') {
-      doc.text('Installment Details:', 14, doc.lastAutoTable.finalY + 10);
-      doc.text(`Number of Installments: ${calculatedFees.installments}`, 14, doc.lastAutoTable.finalY + 18);
-    }
+      // Add fee breakdown
+      doc.text('Fee Breakdown:', 14, yPos + 4);
+      doc.autoTable({
+        startY: yPos + 8,
+        head: [['Item', 'Amount (¥)']],
+        body: [
+          ['Course Fees', calculatedFees.courseFees.toFixed(2)],
+          ['Registration Fee', calculatedFees.registrationFee.toFixed(2)],
+          ['Sub Total', calculatedFees.subTotal.toFixed(2)],
+          ['Tax (10%)', calculatedFees.taxAmount.toFixed(2)],
+          ['Total Fees', calculatedFees.totalFeesWithTax.toFixed(2)]
+        ],
+      });
 
-    // Add monthly breakdown
-    doc.text('Monthly Breakdown:', 14, doc.lastAutoTable.finalY + 30);
-  doc.autoTable({
-    startY: doc.lastAutoTable.finalY + 34,
-    head: [['Month', 'Hours', 'Fees (¥)']],
-    body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
-    margin: { top: 10 },
-  });
+      // Add installment details if applicable
+      if (paymentOption === 'installment') {
+        doc.text('Installment Details:', 14, doc.lastAutoTable.finalY + 10);
+        doc.text(`Number of Installments: ${calculatedFees.installments}`, 14, doc.lastAutoTable.finalY + 18);
+      }
 
-  console.log("PDF generated, attempting to save/upload");
-    
-    // Generate a unique filename
-    const joinDate = new Date(calculatedFees.studentJoinDate).toISOString().split('T')[0];
-    const installmentEndDateString = paymentOption === 'installment' ? `_endDate${installmentEndDate}` : '';
-    const fileName = `${calculatedFees.course}_${paymentOption}_${calculatedFees.courseDuration}months_${joinDate}${installmentEndDateString}.pdf`;
-    
-    console.log("Checking for existing file");
+      // Add monthly breakdown
+      doc.text('Monthly Breakdown:', 14, doc.lastAutoTable.finalY + 30);
+      doc.autoTable({
+        startY: doc.lastAutoTable.finalY + 34,
+        head: [['Month', 'Hours', 'Fees (¥)']],
+        body: calculatedFees.monthlyBreakdown.map(m => [m.month, m.hours, m.fees.toFixed(2)]),
+        margin: { top: 10 },
+      });
+
+      console.log("PDF generated, attempting to save/upload");
+      
+      // Generate a unique filename
+      const joinDate = new Date(calculatedFees.studentJoinDate).toISOString().split('T')[0];
+      const installmentEndDateString = paymentOption === 'installment' ? `_endDate${installmentEndDate}` : '';
+      const fileName = `${calculatedFees.course}_${paymentOption}_${calculatedFees.courseDuration}months_${joinDate}${installmentEndDateString}.pdf`;
+      
+      console.log("Checking for existing file");
       // Check if a file with the same details already exists
       const q = query(
         collection(db, 'pdfs'),
@@ -217,36 +239,29 @@
         where('duration', '==', calculatedFees.courseDuration),
         where('joinDate', '==', joinDate),
         where('installmentEndDate', '==', installmentEndDate || null)
-       
       );
       const querySnapshot = await getDocs(q);
 
-      // if (!querySnapshot.empty) {
-      //   // If a matching file exists, use its URL
-      //   console.log("Existing file found, using its URL");
-      //   pdfUrl = querySnapshot.docs[0].data().url;
-      // } else {
-        
-        // If no matching file exists, upload the new one
-        console.log("No existing file found, uploading new one");
-        const pdfBlob = doc.output('blob');
-        const fileRef = ref(storage, `pdfs/${fileName}`);
-        await uploadBytes(fileRef, pdfBlob);
-        pdfUrl = await getDownloadURL(fileRef);
-        
-        // Save the file information to Firestore
-        console.log("File uploaded, saving information to Firestore");
-        await addDoc(collection(db, 'pdfs'), {
-          fileName: fileName,
-          url: pdfUrl,
-          course: calculatedFees.course,
-          paymentOption: paymentOption,
-          duration: calculatedFees.courseDuration,
-          joinDate: joinDate,
-          installmentEndDate: installmentEndDate || null,
-          createdAt: new Date()
-        });
+      // If no matching file exists, upload the new one
+      console.log("No existing file found, uploading new one");
+      const pdfBlob = doc.output('blob');
+      const fileRef = ref(storage, `pdfs/${fileName}`);
+      await uploadBytes(fileRef, pdfBlob);
+      pdfUrl = await getDownloadURL(fileRef);
       
+      // Save the file information to Firestore
+      console.log("File uploaded, saving information to Firestore");
+      await addDoc(collection(db, 'pdfs'), {
+        fileName: fileName,
+        url: pdfUrl,
+        course: calculatedFees.course,
+        paymentOption: paymentOption,
+        duration: calculatedFees.courseDuration,
+        joinDate: joinDate,
+        installmentEndDate: installmentEndDate || null,
+        createdAt: new Date()
+      });
+    
       console.log("PDF export completed successfully");
     } catch (error) {
       console.error('Error handling PDF:', error);
@@ -255,23 +270,24 @@
       isExporting = false;
     }
   }
+
   function downloadPDF() {
-  if (pdfUrl) {
-    try {
-      window.open(pdfUrl, '_blank');
-      const link = document.createElement('a');
-      link.href = pdfUrl;
-      link.download = `${calculatedFees.course}_fee_calculation.pdf`;
-      link.target = '_blank';
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-    } catch (error) {
-      console.error('Error downloading PDF:', error);
-      alert('Failed to download PDF. Please try again.');
+    if (pdfUrl) {
+      try {
+        window.open(pdfUrl, '_blank');
+        const link = document.createElement('a');
+        link.href = pdfUrl;
+        link.download = `${calculatedFees.course}_fee_calculation.pdf`;
+        link.target = '_blank';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } catch (error) {
+        console.error('Error downloading PDF:', error);
+        alert('Failed to download PDF. Please try again.');
+      }
     }
   }
-}
 
   $: filteredCourses = selectedCategory 
     ? courses.filter(course => course.categoryId === selectedCategory.id)
@@ -317,7 +333,7 @@
         </select>
       </div>
 
-      <h2 class="text-xl font-bold mb-4">Courses</h2>
+      <h2 class="text-xl  font-bold mb-4">Courses</h2>
       <div class="mb-4">
         <label for="course" class="block text-gray-700 text-sm font-bold mb-2">Select Course:</label>
         <select
@@ -333,36 +349,47 @@
       </div>
 
       {#if selectedCourse}
-      <div class="mb-4">
-        <h3 class="text-lg font-semibold mb-2">Course Details</h3>
-        <div class="grid grid-cols-1 gap-4">
-          <div>
-            <label for="courseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Course Start Date:</label>
-            <div id="courseStartDate" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
-              {new Date(selectedCourse.courseStartDate).toLocaleDateString()}
+        <div class="mb-4">
+          <h3 class="text-lg font-semibold mb-2">Course Details</h3>
+          <div class="grid grid-cols-1 gap-4">
+            <div>
+              <label for="courseStartDate" class="block text-gray-700 text-sm font-bold mb-2">Course Start Date:</label>
+              <div id="courseStartDate" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+                {new Date(selectedCourse.courseStartDate).toLocaleDateString()}
+              </div>
             </div>
-          </div>
-          <div>
-            <label for="courseEndDate" class="block text-gray-700 text-sm font-bold mb-2">Course End Date:</label>
-            <div id="courseEndDate" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
-              {new Date(selectedCourse.courseEndDate).toLocaleDateString()}
+            <div>
+              <label for="courseEndDate" class="block text-gray-700 text-sm font-bold mb-2">Course End Date:</label>
+              <div id="courseEndDate" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+                {new Date(selectedCourse.courseEndDate).toLocaleDateString()}
+              </div>
             </div>
-          </div>
-          <div>
-            <label for="courseDuration" class="block text-gray-700 text-sm font-bold mb-2">Course Duration:</label>
-            <div id="courseDuration" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
-              {selectedCourse.durationMonths} months
+            <div>
+              <label for="courseDuration" class="block text-gray-700 text-sm font-bold mb-2">Course Duration:</label>
+              <div id="courseDuration" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+                {selectedCourse.durationMonths} months
+              </div>
             </div>
-          </div>
-          <div>
-            <label for="courseTime" class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
-            <div id="courseTime" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
-              {selectedCourse.courseTime}
+            <div>
+              <label for="courseTime" class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
+              <div id="courseTime" class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100" aria-readonly="true">
+                {selectedCourse.courseTime}
+              </div>
             </div>
+            {#if selectedCourse.additionalTimeSlots && selectedCourse.additionalTimeSlots.length > 0}
+              <div>
+                <!-- svelte-ignore a11y-label-has-associated-control -->
+                <label class="block text-gray-700 text-sm font-bold mb-2">Additional Time Slots:</label>
+                {#each selectedCourse.additionalTimeSlots as slot, index}
+                  <div class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100 mb-2" aria-readonly="true">
+                    Slot {index + 1}: {slot.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} - {slot.timeSlot}
+                  </div>
+                {/each}
+              </div>
+            {/if}
           </div>
         </div>
-      </div>
-    {/if}
+      {/if}
 
       <h2 class="text-xl font-bold mb-4">Student Details</h2>
       
@@ -373,9 +400,8 @@
           id="studentJoinDate"
           bind:value={studentJoinDate}
           min={selectedCourse?.courseStartDate}
-          
           max={selectedCourse?.courseEndDate}
-          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none  focus:shadow-outline"
+          class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
         />
       </div>
 
@@ -392,7 +418,7 @@
       </div>
 
       {#if paymentOption === 'installment'}
-        <div  class="mb-4">
+        <div class="mb-4">
           <label for="installmentEndDate" class="block text-gray-700 text-sm font-bold mb-2">Installment End Date:</label>
           <input
             type="date"
@@ -445,6 +471,18 @@
         <div class="font-bold">Course Time:</div>
         <div>{calculatedFees.courseTime}</div>
       </div>
+
+      {#if calculatedFees.additionalTimeSlots && calculatedFees.additionalTimeSlots.length > 0}
+        <div class="mt-4">
+          <h3 class="text-lg font-bold mb-2">Additional Time Slots:</h3>
+          {#each calculatedFees.additionalTimeSlots as slot, index}
+            <div class="mb-2">
+              <span class="font-semibold">Slot {index + 1}:</span> 
+              {slot.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} - {slot.timeSlot}
+            </div>
+          {/each}
+        </div>
+      {/if}
 
       {#if paymentOption === 'installment' && calculatedFees.installments}
         <div class="mt-6">

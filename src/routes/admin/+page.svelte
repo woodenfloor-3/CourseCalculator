@@ -43,6 +43,7 @@
     courseEndDate: "",
     timeSlotStart: "07:00",
     timeSlotStartPeriod: "AM",
+    additionalTimeSlots: []
   };
   let newHoliday = { month: 1, days: "" };
   let user = null;
@@ -116,40 +117,31 @@
     }));
   }
 
- 
-
-async function fetchStorageUsage() {
-  const storageRef = ref(storage);
-  let totalSize = 0;
-  
-  async function calculateSize(ref) {
-    const result = await listAll(ref);
+  async function fetchStorageUsage() {
+    const storageRef = ref(storage);
+    let totalSize = 0;
     
-    for (const itemRef of result.items) {
-      const metadata = await getMetadata(itemRef);
-      totalSize += metadata.size;
+    async function calculateSize(ref) {
+      const result = await listAll(ref);
+      
+      for (const itemRef of result.items) {
+        const metadata = await getMetadata(itemRef);
+        totalSize += metadata.size;
+      }
+      
+      for (const prefixRef of result.prefixes) {
+        await calculateSize(prefixRef);
+      }
     }
     
-    for (const prefixRef of result.prefixes) {
-      await calculateSize(prefixRef);
+    try {
+      await calculateSize(storageRef);
+      storageUsage.used = totalSize;
+    } catch (error) {
+      console.error("Error calculating storage usage:", error);
     }
   }
-  
-  try {
-    await calculateSize(storageRef);
-    storageUsage.used = totalSize;
-  } catch (error) {
-    console.error("Error calculating storage usage:", error);
-  }
-  function formatSize(bytes) {
-    if (bytes === 0) return '0 Bytes';
-    const k = 1024;
-    const sizes = ['Bytes', 'KB', 'MB', 'GB', 'TB'];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
-  }
 
-}
   async function addCategory() {
     await addDoc(collection(db, "categories"), newCategory);
     fetchCategories();
@@ -201,11 +193,26 @@ async function fetchStorageUsage() {
     courseToUpdate.timeSlot = `${courseToUpdate.timeSlotStart} ${courseToUpdate.timeSlotStartPeriod} - ${calculateTimeSlotEnd(courseToUpdate.timeSlotStart, courseToUpdate.classHours, courseToUpdate.timeSlotStartPeriod)}`;
   }
 
+  function addAdditionalTimeSlot() {
+    newCourse.additionalTimeSlots = [
+      ...newCourse.additionalTimeSlots,
+      { days: [], startTime: "", startPeriod: "AM" }
+    ];
+  }
+
+  function removeAdditionalTimeSlot(index) {
+    newCourse.additionalTimeSlots = newCourse.additionalTimeSlots.filter((_, i) => i !== index);
+  }
+
   async function addCourse() {
     const courseData = {
       ...newCourse,
       createdAt: new Date().toISOString(),
       createdBy: user.email,
+      additionalTimeSlots: newCourse.additionalTimeSlots.map(slot => ({
+        days: slot.days,
+        timeSlot: `${slot.startTime} ${slot.startPeriod} - ${calculateTimeSlotEnd(slot.startTime, newCourse.classHours, slot.startPeriod)}`
+      }))
     };
     await addDoc(collection(db, "courses"), courseData);
     await fetchCourses();
@@ -213,7 +220,14 @@ async function fetchStorageUsage() {
   }
 
   function openUpdateModal(course) {
-    courseToUpdate = { ...course };
+    courseToUpdate = {
+      ...course,
+      additionalTimeSlots: course.additionalTimeSlots.map(slot => ({
+        days: slot.days,
+        startTime: slot.timeSlot.split(' - ')[0].split(' ')[0],
+        startPeriod: slot.timeSlot.split(' - ')[0].split(' ')[1]
+      }))
+    };
     updateCourseToUpdateTimeSlot();
     showUpdateModal = true;
   }
@@ -239,6 +253,10 @@ async function fetchStorageUsage() {
       timeSlot: courseToUpdate.timeSlot,
       timeSlotStart: courseToUpdate.timeSlotStart,
       timeSlotStartPeriod: courseToUpdate.timeSlotStartPeriod,
+      additionalTimeSlots: courseToUpdate.additionalTimeSlots.map(slot => ({
+        days: slot.days,
+        timeSlot: `${slot.startTime} ${slot.startPeriod} - ${calculateTimeSlotEnd(slot.startTime, courseToUpdate.classHours, slot.startPeriod)}`
+      }))
     });
     await fetchCourses();
     closeUpdateModal();
@@ -261,6 +279,7 @@ async function fetchStorageUsage() {
       courseEndDate: "",
       timeSlotStart: "07:00",
       timeSlotStartPeriod: "AM",
+      additionalTimeSlots: []
     };
   }
 
@@ -311,15 +330,50 @@ async function fetchStorageUsage() {
     if (newCourse.courseStartDate && newCourse.courseEndDate) {
       const start = new Date(newCourse.courseStartDate);
       const end = new Date(newCourse.courseEndDate);
-      const diffTime = Math.abs(end - start);
-      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-      newCourse.durationMonths = Math.round(diffDays / 30.44); // Using average days in a month
+      
+      // Check if dates are valid
+      if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+        console.error('Invalid date format');
+        return;
+      }
+
+      // Calculate the difference in months
+      let months = (end.getFullYear() - start.getFullYear()) * 12;
+      months += end.getMonth() - start.getMonth();
+      
+      // Adjust for day of month
+      if (end.getDate() >= start.getDate()) {
+        months += 1;
+      }
+      
+      // Calculate the exact number of days
+      const dayDiff = Math.ceil((end - start) / (1000 * 60 * 60 * 24));
+      
+      // If the day difference is more than 7 days longer than the calculated months, add an extra month
+      if (dayDiff > (months * 30.44 + 7)) {
+        months += 1;
+      }
+      
+      // Ensure the duration is at least 1 month
+      newCourse.durationMonths = Math.max(1, months);
+      
+      // If end date is before start date, reset to 0
+      if (end < start) {
+        newCourse.durationMonths = 0;
+      }
+    } else {
+      newCourse.durationMonths = 0;
     }
   }
 
   function formatDate(dateString) {
     const date = new Date(dateString);
-    return `${date.getDate().toString().padStart(2, "0")}/${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getFullYear()}`;
+    return `${(date.getMonth() + 1).toString().padStart(2, "0")}/${date.getDate().toString().padStart(2, "0")}/${date.getFullYear()}`;
+  }
+
+  function parseDate(dateString) {
+    const [month, day, year] = dateString.split('/');
+    return new Date(year, month - 1, day);
   }
 
   function copyLink(url) {
@@ -354,7 +408,7 @@ async function fetchStorageUsage() {
     <div class="bg-white shadow-lg rounded-lg overflow-hidden mb-8">
       <div class="flex flex-wrap sm:flex-nowrap border-b">
         <button
-          class="flex-1 py-2 sm:py-4 px-4 sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'categories' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
+          class="flex-1 py-2 sm:py-4 px-4  sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'categories' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
           on:click={() => (activeTab = "categories")}
         >
           Categories
@@ -372,7 +426,7 @@ async function fetchStorageUsage() {
           Holidays
         </button>
         <button
-          class="flex-1 py-2 sm:py-4 px-4 sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'pdfs' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
+          class="flex-1 py-2 sm:py-4 px-4  sm:px-6 text-center font-semibold text-sm sm:text-base {activeTab === 'pdfs' ? 'bg-blue-500 text-white' : 'hover:bg-gray-100'}"
           on:click={() => (activeTab = "pdfs")}
         >
           Course PDFs
@@ -388,14 +442,15 @@ async function fetchStorageUsage() {
                 <label
                   for="categoryName"
                   class="block text-gray-700 text-sm font-bold mb-2"
-                >Category Name:</label
                 >
+                  Category Name:
+                </label>
                 <input
                   type="text"
                   id="categoryName"
                   bind:value={newCategory.name}
                   required
-                  class="shadow appearance-none border rounded  w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                 />
               </div>
               <div class="w-full sm:w-auto">
@@ -462,6 +517,7 @@ async function fetchStorageUsage() {
                       <label class="inline-flex items-center">
                         <input
                           type="checkbox"
+                          id={`day-${day.id}`}
                           class="form-checkbox"
                           checked={newCourse.classDays.includes(day.id)}
                           on:change={() => toggleDay(day.id)}
@@ -538,6 +594,7 @@ async function fetchStorageUsage() {
                     class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow"
                   />
                   <select
+                    id="courseTimeSlotStartPeriod"
                     bind:value={newCourse.timeSlotStartPeriod}
                     class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                   >
@@ -547,6 +604,80 @@ async function fetchStorageUsage() {
                 </div>
               </div>
             </div>
+            <!-- Additional Time Slots -->
+            <div class="mt-4">
+              <h3 class="text-lg font-bold mb-2">Additional Time Slots</h3>
+              {#each newCourse.additionalTimeSlots as timeSlot, index}
+                <div class="mb-4 p-4 border rounded">
+                  <h4 class="text-md font-semibold mb-2">Time Slot {index + 1}</h4>
+                  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                      <fieldset>
+                        <legend class="block text-gray-700 text-sm font-bold mb-2">Days:</legend>
+                        <div class="flex flex-wrap gap-2">
+                          {#each daysOfWeek as day}
+                            <label class="inline-flex items-center">
+                              <input
+                                type="checkbox"
+                                id={`additional-day-${index}-${day.id}`}
+                                class="form-checkbox"
+                                checked={timeSlot.days.includes(day.id)}
+                                on:change={() => {
+                                  const dayIndex = timeSlot.days.indexOf(day.id);
+                                  if (dayIndex === -1) {
+                                    timeSlot.days = [...timeSlot.days, day.id];
+                                  } else {
+                                    timeSlot.days = timeSlot.days.filter(d => d !== day.id);
+                                  }
+                                  newCourse.additionalTimeSlots = [...newCourse.additionalTimeSlots];
+                                }}
+                              />
+                              <span class="ml-2">{day.name}</span>
+                            </label>
+                          {/each}
+                        </div>
+                      </fieldset>
+                    </div>
+                    <div>
+                      <label for={`additional-start-time-${index}`} class="block text-gray-700 text-sm font-bold mb-2">Start Time:</label>
+                      <div class="flex space-x-2">
+                        <input
+                          type="text"
+                          id={`additional-start-time-${index}`}
+                          bind:value={timeSlot.startTime}
+                          placeholder="HH:MM"
+                          pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
+                          class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow"
+                        />
+                        <select
+                          id={`additional-start-period-${index}`}
+                          bind:value={timeSlot.startPeriod}
+                          class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                        >
+                          <option value="AM">AM</option>
+                          <option value="PM">PM</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    on:click={() => removeAdditionalTimeSlot(index)}
+                    class="mt-2 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-sm"
+                  >
+                    Remove
+                  </button>
+                </div>
+              {/each}
+              <button
+                type="button"
+                on:click={addAdditionalTimeSlot}
+                class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-sm"
+              >
+                Add Another Time Slot
+              </button>
+            </div>
+
             <div class="mt-6">
               <button
                 type="submit"
@@ -557,6 +688,7 @@ async function fetchStorageUsage() {
               </button>
             </div>
           </form>
+           
 
           <h3 class="text-lg sm:text-xl font-bold mb-4">Existing Courses:</h3>
           <div class="grid gap-6">
@@ -585,22 +717,26 @@ async function fetchStorageUsage() {
                     <JapaneseYen class="mr-2" size={16} /> Fee Per Hour: ¥ {course.feePerHour}
                   </p>
                   <p class="flex items-center">
-                    <Calendar class="mr-2" size={16} /> Start Date: {formatDate(
-                      course.courseStartDate
-                    )}
+                    <Calendar class="mr-2" size={16} /> Start Date: {formatDate(course.courseStartDate)}
                   </p>
                   <p class="flex items-center">
-                    <Calendar class="mr-2" size={16} /> End Date: {formatDate(
-                      course.courseEndDate
-                    )}
+                    <Calendar class="mr-2" size={16} /> End Date: {formatDate(course.courseEndDate)}
                   </p>
                   <p class="flex items-center">
                     <Clock class="mr-2" size={16} /> Time Slot: {course.timeSlot}
                   </p>
+                  {#if course.additionalTimeSlots && course.additionalTimeSlots.length > 0}
+                    <div class="mt-2">
+                      <p class="font-semibold">Additional Time Slots:</p>
+                      {#each course.additionalTimeSlots as slot}
+                        <p class="ml-4">
+                          {formatDays(slot.days)}: {slot.timeSlot}
+                        </p>
+                      {/each}
+                    </div>
+                  {/if}
                   <p class="flex items-center">
-                    <Calendar class="mr-2" size={16} /> Created: {formatDate(
-                      course.createdAt
-                    )}
+                    <Calendar class="mr-2" size={16} /> Created: {formatDate(course.createdAt)}
                   </p>
                   <p class="flex items-center">
                     <User class="mr-2" size={16} /> Created by: {course.createdBy}
@@ -639,14 +775,14 @@ async function fetchStorageUsage() {
                   {#each months as month, index}
                     <option value={index + 1}>{month}</option>
                   {/each}
-                </select>
+                                </select>
               </div>
               <div>
                 <label for="holidayDays" class="block text-gray-700 text-sm font-bold mb-2">Days (comma-separated):</label>
                 <input
                   type="text"
                   id="holidayDays"
-                  bind:value={newHoliday.days}
+                                    bind:value={newHoliday.days}
                   required
                   placeholder="1, 2, 3"
                   class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
@@ -775,6 +911,7 @@ async function fetchStorageUsage() {
                   <label class="inline-flex items-center">
                     <input
                       type="checkbox"
+                      id={`update-day-${day.id}`}
                       class="form-checkbox"
                       checked={courseToUpdate.classDays.includes(day.id)}
                       on:change={() => toggleUpdateDay(day.id)}
@@ -839,6 +976,7 @@ async function fetchStorageUsage() {
                 class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow"
               />
               <select
+                id="updateCourseTimeSlotStartPeriod"
                 bind:value={courseToUpdate.timeSlotStartPeriod}
                 class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
               >
@@ -846,6 +984,85 @@ async function fetchStorageUsage() {
                 <option value="PM">PM</option>
               </select>
             </div>
+          </div>
+          <div class="col-span-2">
+            <h4 class="text-lg font-bold mb-2">Additional Time Slots</h4>
+            {#each courseToUpdate.additionalTimeSlots as timeSlot, index}
+              <div class="mb-4 p-4 border rounded">
+                <h5 class="text-md font-semibold mb-2">Time Slot {index + 1}</h5>
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <fieldset>
+                      <legend class="block text-gray-700 text-sm font-bold mb-2">Days:</legend>
+                      <div class="flex flex-wrap gap-2">
+                        {#each daysOfWeek as day}
+                          <label class="inline-flex items-center">
+                            <input
+                              type="checkbox"
+                              id={`update-additional-day-${index}-${day.id}`}
+                              class="form-checkbox"
+                              checked={timeSlot.days.includes(day.id)}
+                              on:change={() => {
+                                const dayIndex = timeSlot.days.indexOf(day.id);
+                                if (dayIndex === -1) {
+                                  timeSlot.days = [...timeSlot.days, day.id];
+                                } else {
+                                  timeSlot.days = timeSlot.days.filter(d => d !== day.id);
+                                }
+                                courseToUpdate.additionalTimeSlots = [...courseToUpdate.additionalTimeSlots];
+                              }}
+                            />
+                            <span class="ml-2">{day.name}</span>
+                          </label>
+                        {/each}
+                      </div>
+                    </fieldset>
+                  </div>
+                  <div>
+                    <label for={`update-additional-start-time-${index}`} class="block text-gray-700 text-sm font-bold mb-2">Start Time:</label>
+                    <div class="flex space-x-2">
+                      <input
+                        type="text"
+                        id={`update-additional-start-time-${index}`}
+                        bind:value={timeSlot.startTime}
+                        placeholder="HH:MM"
+                        pattern="([01]?[0-9]|2[0-3]):[0-5][0-9]"
+                        class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline flex-grow"
+                      />
+                      <select
+                        id={`update-additional-start-period-${index}`}
+                        bind:value={timeSlot.startPeriod}
+                        class="shadow appearance-none border rounded py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                      >
+                        <option value="AM">AM</option>
+                        <option value="PM">PM</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  on:click={() => {
+                    courseToUpdate.additionalTimeSlots = courseToUpdate.additionalTimeSlots.filter((_, i) => i !== index);
+                  }}
+                  class="mt-2 bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded text-sm"
+                >
+                  Remove
+                </button>
+              </div>
+            {/each}
+            <button
+              type="button"
+              on:click={() => {
+                courseToUpdate.additionalTimeSlots = [
+                  ...courseToUpdate.additionalTimeSlots,
+                  { days: [], startTime: "", startPeriod: "AM" }
+                ];
+              }}
+              class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded text-sm"
+            >
+              Add Another Time Slot
+            </button>
           </div>
         </div>
         <div class="mt-6 flex justify-end space-x-2">
@@ -867,7 +1084,6 @@ async function fetchStorageUsage() {
     </div>
   </div>
 {/if}
-
 
 <style>
   :global(body) {
