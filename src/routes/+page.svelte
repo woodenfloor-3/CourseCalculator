@@ -100,12 +100,12 @@
       }
 
       // Check additional time slots
-      selectedCourse.additionalTimeSlots.forEach(slot => {
-        if (slot.days.includes(currentDate.getDay()) && !isHoliday(currentDate)) {
-          totalHours += selectedCourse.classHours;
-          currentMonthHours += selectedCourse.classHours;
-        }
-      });
+      // selectedCourse.additionalTimeSlots.forEach(slot => {
+      //   if (slot.days.includes(currentDate.getDay()) && !isHoliday(currentDate)) {
+      //     totalHours += selectedCourse.classHours;
+      //     currentMonthHours += selectedCourse.classHours;
+      //   }
+      // });
 
       const nextDate = new Date(currentDate);
       nextDate.setDate(nextDate.getDate() + 1);
@@ -149,7 +149,7 @@
       courseDays: selectedCourse.classDays.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', '),
       courseDuration: selectedCourse.durationMonths,
       courseTime: selectedCourse.courseTime,
-      additionalTimeSlots: selectedCourse.additionalTimeSlots,
+      // additionalTimeSlots: selectedCourse.additionalTimeSlots,
       monthlyBreakdown
     };
 
@@ -183,21 +183,21 @@
       doc.text(`Course Days: ${calculatedFees.courseDays}`, 14, 72);
       doc.text(`Course Time: ${calculatedFees.courseTime}`, 14, 80);
 
-      // Add additional time slots
-      let yPos = 88;
-      if (calculatedFees.additionalTimeSlots && calculatedFees.additionalTimeSlots.length > 0) {
-        doc.text('Additional Time Slots:', 14, yPos);
-        yPos += 8;
-        calculatedFees.additionalTimeSlots.forEach((slot, index) => {
-          doc.text(`Slot ${index + 1}: ${slot.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} - ${slot.timeSlot}`, 14, yPos);
-          yPos += 8;
-        });
-      }
+      // // Add additional time slots
+      // let yPos = 88;
+      // if (calculatedFees.additionalTimeSlots && calculatedFees.additionalTimeSlots.length > 0) {
+      //   doc.text('Course Time:', 14, yPos);
+      //   yPos += 8;
+      //   calculatedFees.additionalTimeSlots.forEach((slot, index) => {
+      //     doc.text(`Slot ${index + 1}: ${slot.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} - ${slot.timeSlot}`, 14, yPos);
+      //     yPos += 8;
+      //   });
+      // }
 
       // Add fee breakdown
-      doc.text('Fee Breakdown:', 14, yPos + 4);
+      doc.text('Fee Breakdown:', 14,  88);
       doc.autoTable({
-        startY: yPos + 8,
+        startY: 92,
         head: [['Item', 'Amount (¥)']],
         body: [
           ['Course Fees', calculatedFees.courseFees.toFixed(2)],
@@ -379,10 +379,10 @@
             {#if selectedCourse.additionalTimeSlots && selectedCourse.additionalTimeSlots.length > 0}
               <div>
                 <!-- svelte-ignore a11y-label-has-associated-control -->
-                <label class="block text-gray-700 text-sm font-bold mb-2">Additional Time Slots:</label>
+                <label class="block text-gray-700 text-sm font-bold mb-2">Course Time:</label>
                 {#each selectedCourse.additionalTimeSlots as slot, index}
                   <div class="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 bg-gray-100 mb-2" aria-readonly="true">
-                    Slot {index + 1}: {slot.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} - {slot.timeSlot}
+                    {slot.days.map(day => ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][day]).join(', ')} - {slot.timeSlot}
                   </div>
                 {/each}
               </div>

@@ -193,6 +193,7 @@
     courseToUpdate.timeSlot = `${courseToUpdate.timeSlotStart} ${courseToUpdate.timeSlotStartPeriod} - ${calculateTimeSlotEnd(courseToUpdate.timeSlotStart, courseToUpdate.classHours, courseToUpdate.timeSlotStartPeriod)}`;
   }
 
+
   function addAdditionalTimeSlot() {
     newCourse.additionalTimeSlots = [
       ...newCourse.additionalTimeSlots,
